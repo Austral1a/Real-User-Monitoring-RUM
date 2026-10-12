@@ -11,6 +11,7 @@ Layout follows [sveltejs/realworld](https://github.com/sveltejs/realworld): `$li
 - Chart.js is imported as a module from Svelte. Express no longer serves `chart.umd.min.js`.
 - `web/src/App.svelte` mounts the dashboard.
 - `$lib` (`web/src/lib`) holds `api`, `constants`, `format`, `charts`, `types`, `search`, and shared widgets (`ChartPane`, `RankedTable`, `ToggleGroup`).
+- `$lib/components/ui` is shadcn-svelte (Card, Table, Badge, Alert, ToggleGroup). Dashboard layout uses Tailwind v4.
 - `$lib/Dashboard/` is the overview feature: `index.svelte` plus Header, SummaryCards, PageViews, ContextCharts, ErrorTable.
 
 ## Dev and production

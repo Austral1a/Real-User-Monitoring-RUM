@@ -1,7 +1,10 @@
 <script lang="ts">
+  import CircleAlertIcon from "@lucide/svelte/icons/circle-alert";
+  import InfoIcon from "@lucide/svelte/icons/info";
   import { onDestroy } from "svelte";
 
   import { fetchOverview } from "$lib/api";
+  import * as Alert from "$lib/components/ui/alert/index.js";
   import { REFRESH_MS } from "$lib/constants";
   import { readSearch, writeSearch } from "$lib/search";
   import type { Overview, RangeKey, SessionKey } from "$lib/types";
@@ -47,15 +50,22 @@
 
 <Header bind:range bind:sessionKey {status} />
 
-<main>
+<main class="mx-auto grid max-w-7xl gap-4 px-6 py-5 pb-10">
   {#if loadError}
-    <p class="banner banner-error" role="alert">{loadError}</p>
+    <Alert.Root variant="destructive">
+      <CircleAlertIcon />
+      <Alert.Title>Could not load metrics</Alert.Title>
+      <Alert.Description>{loadError}</Alert.Description>
+    </Alert.Root>
   {/if}
   {#if data && data.totals.sessions === 0}
-    <p class="banner">
-      No data for this period yet. Open a page with the RUM snippet installed to
-      start collecting.
-    </p>
+    <Alert.Root>
+      <InfoIcon />
+      <Alert.Title>No data for this period yet</Alert.Title>
+      <Alert.Description>
+        Open a page with the RUM snippet installed to start collecting.
+      </Alert.Description>
+    </Alert.Root>
   {/if}
 
   {#if data}

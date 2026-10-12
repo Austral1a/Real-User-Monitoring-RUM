@@ -1,69 +1,73 @@
 <script lang="ts">
+  import { Badge } from "$lib/components/ui/badge/index.js";
+  import * as Card from "$lib/components/ui/card/index.js";
+  import * as Table from "$lib/components/ui/table/index.js";
   import { countryLabel } from "$lib/format";
   import type { ErrorRow } from "$lib/types";
 
-  const ERROR_LABELS: Record<ErrorRow["type"], string> = {
-    js_error: "JS error",
-    network_error: "Network",
-    crash: "Crash",
-  };
+  import { details, errorBadge } from "./helpers";
 
   let { errors }: { errors: ErrorRow[] } = $props();
-
-  function details(error: ErrorRow): string {
-    if (error.type === "network_error") {
-      return `${error.method} ${error.source} → ${error.status === 0 ? "failed" : error.status}`;
-    }
-    if (error.type === "crash") {
-      return "Left before the page finished loading";
-    }
-    return error.message ?? "";
-  }
 </script>
 
-<section class="panel">
-  <h2>Recent errors</h2>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th scope="col">Time</th>
-          <th scope="col">Type</th>
-          <th scope="col">Details</th>
-          <th scope="col">Page</th>
-          <th scope="col">Device</th>
-          <th scope="col">Country</th>
-        </tr>
-      </thead>
-      <tbody>
+<Card.Root>
+  <Card.Header>
+    <Card.Title>Recent errors</Card.Title>
+  </Card.Header>
+  <Card.Content>
+    <Table.Root>
+      <Table.Header>
+        <Table.Row>
+          <Table.Head>Time</Table.Head>
+          <Table.Head>Type</Table.Head>
+          <Table.Head>Details</Table.Head>
+          <Table.Head>Page</Table.Head>
+          <Table.Head>Device</Table.Head>
+          <Table.Head>Country</Table.Head>
+        </Table.Row>
+      </Table.Header>
+      <Table.Body>
         {#if errors.length === 0}
-          <tr>
-            <td class="empty-row" colspan="6">No errors in this period</td>
-          </tr>
+          <Table.Row>
+            <Table.Cell
+              colspan={6}
+              class="text-muted-foreground text-center"
+            >
+              No errors in this period
+            </Table.Cell>
+          </Table.Row>
         {:else}
           {#each errors as error, index (error.receivedAt + error.type + index)}
-            <tr>
-              <td class="nowrap">{new Date(error.receivedAt).toLocaleString()}</td>
-              <td>
-                <span class="badge badge-{error.type}"
-                  >{ERROR_LABELS[error.type]}</span
-                >
-              </td>
-              <td class="details">
-                <span class="detail">{details(error)}</span>
-                {#if error.type === "js_error" && error.source}
-                  <span class="source">{error.source}</span>
-                {/if}
-              </td>
-              <td>{error.path}</td>
-              <td class="nowrap">{error.device} · {error.os}</td>
-              <td class="nowrap"
-                >{error.country ? countryLabel(error.country) : "Unknown"}</td
+            {@const badge = errorBadge(error.type)}
+            <Table.Row>
+              <Table.Cell class="whitespace-nowrap"
+                >{new Date(error.receivedAt).toLocaleString()}</Table.Cell
               >
-            </tr>
+              <Table.Cell>
+                <Badge variant={badge.variant} class={badge.className}
+                  >{badge.label}</Badge
+                >
+              </Table.Cell>
+              <Table.Cell class="min-w-[280px]">
+                <span class="block break-words">{details(error)}</span>
+                {#if error.type === "js_error" && error.source}
+                  <span
+                    class="text-muted-foreground mt-0.5 block font-mono text-xs break-all"
+                    >{error.source}</span
+                  >
+                {/if}
+              </Table.Cell>
+              <Table.Cell>{error.path}</Table.Cell>
+              <Table.Cell class="whitespace-nowrap"
+                >{error.device} · {error.os}</Table.Cell
+              >
+              <Table.Cell class="whitespace-nowrap"
+                >{error.country ? countryLabel(error.country) : "Unknown"}</Table.Cell
+              >
+            </Table.Row>
           {/each}
         {/if}
-      </tbody>
-    </table>
-  </div>
-</section>
+      </Table.Body>
+    </Table.Root>
+  </Card.Content>
+</Card.Root>

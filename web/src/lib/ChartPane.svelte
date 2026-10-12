@@ -2,6 +2,8 @@
   import type { ChartConfiguration } from "chart.js";
   import { Chart } from "chart.js/auto";
 
+  import { cn } from "$lib/utils.js";
+
   let {
     config,
     label,
@@ -23,6 +25,6 @@
   });
 </script>
 
-<div class="chart" class:chart-wide={wide}>
+<div class={cn("relative mt-3 h-60", wide && "h-[300px]")}>
   <canvas bind:this={canvas} aria-label={label}></canvas>
 </div>

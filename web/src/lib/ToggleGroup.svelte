@@ -1,4 +1,6 @@
 <script lang="ts" generics="T extends string">
+  import * as ToggleGroup from "$lib/components/ui/toggle-group/index.js";
+
   interface Option {
     value: T;
     label: string;
@@ -15,29 +17,27 @@
     options: Option[];
     value: T;
   } = $props();
+
+  function select(next: string) {
+    if (next) value = next as T;
+  }
 </script>
 
-{#if label}
-  <div class="toggle">
-    <span class="toggle-label" id={labelledBy}>{label}</span>
-    <div class="range" role="group" aria-labelledby={labelledBy}>
-      {#each options as option (option.value)}
-        <button
-          type="button"
-          aria-pressed={value === option.value}
-          onclick={() => (value = option.value)}>{option.label}</button
-        >
-      {/each}
-    </div>
-  </div>
-{:else}
-  <div class="range" role="group" aria-label={labelledBy}>
+<div class="flex items-center gap-2">
+  {#if label}
+    <span class="text-muted-foreground text-sm" id={labelledBy}>{label}</span>
+  {/if}
+  <ToggleGroup.Root
+    type="single"
+    variant="outline"
+    size="sm"
+    {value}
+    onValueChange={select}
+    aria-label={label ? undefined : labelledBy}
+    aria-labelledby={label ? labelledBy : undefined}
+  >
     {#each options as option (option.value)}
-      <button
-        type="button"
-        aria-pressed={value === option.value}
-        onclick={() => (value = option.value)}>{option.label}</button
-      >
+      <ToggleGroup.Item value={option.value}>{option.label}</ToggleGroup.Item>
     {/each}
-  </div>
-{/if}
+  </ToggleGroup.Root>
+</div>

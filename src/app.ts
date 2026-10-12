@@ -31,6 +31,7 @@ function dashboardCsp(dev: boolean): string {
     "default-src 'self'",
     "script-src 'self'",
     `style-src 'self'${dev ? " 'unsafe-inline'" : ""}`,
+    "style-src-attr 'unsafe-inline'",
     "img-src 'self' data:",
     "connect-src 'self'",
     "frame-ancestors 'none'",
