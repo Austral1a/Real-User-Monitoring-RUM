@@ -5,6 +5,7 @@ import {
   type BreakdownKey,
   type BreakdownRow,
   type ErrorRow,
+  type EventFilter,
   type PageViewKey,
   type PageViewSample,
   type SessionKey,
@@ -26,6 +27,15 @@ export interface TimingSummary {
   pageLoad: number | null;
   ttfb: number | null;
   startRender: number | null;
+  lcp: number | null;
+  inp: number | null;
+  cls: number | null;
+}
+
+export interface Percentiles {
+  p50: TimingSummary;
+  p75: TimingSummary;
+  p95: TimingSummary;
 }
 
 export interface SeriesPoint extends TimingSummary {
@@ -42,10 +52,13 @@ export interface PageViewRow {
 export interface Overview {
   range: RangeKey;
   sessionKey: SessionKey;
+  path: string | null;
+  origin: string | null;
+  lang: string | null;
   from: number;
   to: number;
   totals: Totals;
-  p50: TimingSummary;
+  percentiles: Percentiles;
   series: SeriesPoint[];
   recentErrors: ErrorRow[];
   breakdowns: Record<BreakdownKey, BreakdownRow[]>;
@@ -76,6 +89,9 @@ export function summarizeTimings(rows: TimingRow[], p = 0.5): TimingSummary {
     pageLoad: percentile(pick(rows, "pageLoad"), p),
     ttfb: percentile(pick(rows, "ttfb"), p),
     startRender: percentile(pick(rows, "startRender"), p),
+    lcp: percentile(pick(rows, "lcp"), p),
+    inp: percentile(pick(rows, "inp"), p),
+    cls: percentile(pick(rows, "cls"), p),
   };
 }
 
@@ -123,7 +139,7 @@ export function timingSeries(
   return [...buckets].map(([start, bucketRows]) => ({
     start,
     samples: bucketRows.length,
-    ...summarizeTimings(bucketRows),
+    ...summarizeTimings(bucketRows, 0.75),
   }));
 }
 
@@ -132,33 +148,41 @@ export function buildOverview(
   range: RangeKey,
   sessionKey: SessionKey,
   now: number,
+  filter: EventFilter = {},
 ): Overview {
   const { durationMs, bucketMs } = RANGES[range];
   const to = now;
   const from = to - durationMs;
-  const timings = store.timings(from, to);
+  const timings = store.timings(from, to, filter);
 
   const breakdowns = Object.fromEntries(
     (Object.keys(BREAKDOWN_COLUMNS) as BreakdownKey[]).map((key) => [
       key,
-      store.breakdown(key, from, to, sessionKey),
+      store.breakdown(key, from, to, sessionKey, filter),
     ]),
   ) as Record<BreakdownKey, BreakdownRow[]>;
 
   return {
     range,
     sessionKey,
+    path: filter.path ?? null,
+    origin: filter.origin ?? null,
+    lang: filter.lang ?? null,
     from,
     to,
-    totals: store.totals(from, to, sessionKey),
-    p50: summarizeTimings(timings),
+    totals: store.totals(from, to, sessionKey, filter),
+    percentiles: {
+      p50: summarizeTimings(timings, 0.5),
+      p75: summarizeTimings(timings, 0.75),
+      p95: summarizeTimings(timings, 0.95),
+    },
     series: timingSeries(timings, from, to, bucketMs),
-    recentErrors: store.recentErrors(from, to, 50),
+    recentErrors: store.recentErrors(from, to, 50, filter),
     breakdowns,
     pageViews: Object.fromEntries(
       (Object.keys(PAGEVIEW_COLUMNS) as PageViewKey[]).map((key) => [
         key,
-        rankPageViews(store.pageViews(key, from, to)),
+        rankPageViews(store.pageViews(key, from, to, filter)),
       ]),
     ) as Record<PageViewKey, PageViewRow[]>,
   };

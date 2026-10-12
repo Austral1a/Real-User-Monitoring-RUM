@@ -8,16 +8,16 @@ The snippet at `/rum.js` batches events to `POST /collect` on the host that serv
 
 | Event | What it records |
 | --- | --- |
-| Timing | Page load time, time to first byte (TTFB), and start render |
+| Timing | Page load, TTFB, start render, LCP, INP, and CLS. Client-side route changes send a timing event too. |
 | JavaScript errors | Exceptions and unhandled promise rejections |
 | Network errors | Failed `fetch` and `XMLHttpRequest` calls |
 | Crashes | The page was hidden before it finished loading |
 
-Each event also includes a session id, path, page language, device type, operating system, and connection speed. The server adds country and browser family. Raw IP addresses and User-Agent strings are not stored; grouping uses salted hashes. Events older than 30 days are deleted.
+Each event also includes a session id, path, page language, device type, operating system, and connection speed. The server adds the request origin, country, and browser family. Raw IP addresses and User-Agent strings are not stored; grouping uses salted hashes. Events older than 30 days are deleted.
 
 ## Features
 
-The dashboard covers the last 24 hours or 7 days. Sessions can be grouped by session id, user-agent, IP, or both.
+The dashboard covers the last 24 hours or 7 days. Sessions can be grouped by session id, user-agent, IP, or both. Click a URL, site, or language in the page-views tables to scope every chart and total.
 
 **Range and grouping**
 
@@ -25,19 +25,19 @@ The dashboard covers the last 24 hours or 7 days. Sessions can be grouped by ses
 
 **Summary**
 
-Sessions, median page load, TTFB, start render, JS/network errors, and crashed sessions.
+Sessions, page load / TTFB / start render (p50 with p75 and p95), LCP / INP / CLS (p75 with p50 and p95), JS/network errors, and crashed sessions.
 
 ![Summary metric cards](docs/screenshots/summary.png)
 
 **Page views**
 
-Breakdowns by URL, country, browser, and device, with counts and median load time.
+Breakdowns by URL, site, language, country, browser, and device, with counts and median load time. Click URL, site, or language to filter.
 
 ![Page views breakdown](docs/screenshots/page-views.png)
 
 **Timing over time**
 
-Median page load, TTFB, and start render across the selected range.
+p75 page load, TTFB, start render, LCP, and INP across the selected range.
 
 ![Timing over time chart](docs/screenshots/timing.png)
 

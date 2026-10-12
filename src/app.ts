@@ -3,6 +3,7 @@ import { join } from "node:path";
 import express, {
   type ErrorRequestHandler,
   type Express,
+  type Request,
   type RequestHandler,
 } from "express";
 
@@ -13,8 +14,13 @@ import { countryFor, requestIp } from "./geo";
 import { createClientHasher } from "./identity";
 import { buildOverview, isRangeKey, isSessionKey } from "./overview";
 import { DIST_DIR, RUM_SCRIPT } from "./paths";
-import type { Store } from "./store";
-import { parseBatch } from "./validate";
+import type { EventFilter, Store } from "./store";
+import {
+  parseBatch,
+  parseOverviewLang,
+  parseOverviewOrigin,
+  parseOverviewPath,
+} from "./validate";
 
 export const MAX_BODY_BYTES = 8 * 1024;
 
@@ -101,6 +107,7 @@ export function createApp({
           ...event,
           receivedAt,
           country,
+          origin: req.get("origin") ?? null,
           ipHash,
           uaHash,
           browser,
@@ -136,7 +143,12 @@ export function createApp({
       res.status(400).json({ error: "by must be session, ua, ip, or ua-ip" });
       return;
     }
-    res.json(buildOverview(store, range, sessionKey, now()));
+    const filter = parseOverviewFilter(req.query);
+    if (!filter.ok) {
+      res.status(400).json({ error: filter.error });
+      return;
+    }
+    res.json(buildOverview(store, range, sessionKey, now(), filter.value));
   });
 
   if (vite) {
@@ -180,6 +192,21 @@ const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
   console.error("[monitor] Unhandled error", error);
   res.status(500).json({ error: "Internal server error" });
 };
+
+function parseOverviewFilter(
+  query: Request["query"],
+): { ok: true; value: EventFilter } | { ok: false; error: string } {
+  const path = parseOverviewPath(query.path);
+  if (!path.ok) return path;
+  const origin = parseOverviewOrigin(query.origin);
+  if (!origin.ok) return origin;
+  const lang = parseOverviewLang(query.lang);
+  if (!lang.ok) return lang;
+  return {
+    ok: true,
+    value: { path: path.value, origin: origin.value, lang: lang.value },
+  };
+}
 
 function httpStatusOf(error: unknown): number | null {
   if (typeof error !== "object" || error === null) return null;

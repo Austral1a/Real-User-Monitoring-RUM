@@ -16,7 +16,15 @@ function row(
   pageLoad: number | null,
   ttfb: number | null = null,
 ): TimingRow {
-  return { receivedAt, pageLoad, ttfb, startRender: null };
+  return {
+    receivedAt,
+    pageLoad,
+    ttfb,
+    startRender: null,
+    lcp: null,
+    inp: null,
+    cls: null,
+  };
 }
 
 describe("percentile", () => {
@@ -39,7 +47,20 @@ describe("summarizeTimings", () => {
       row(0, 300, 50),
       row(0, null, 70),
     ]);
-    assert.deepEqual(summary, { pageLoad: 100, ttfb: 50, startRender: null });
+    assert.deepEqual(summary, {
+      pageLoad: 100,
+      ttfb: 50,
+      startRender: null,
+      lcp: null,
+      inp: null,
+      cls: null,
+    });
+  });
+
+  it("reports p75 and p95 independently", () => {
+    const rows = [1, 2, 3, 4].map((pageLoad) => row(0, pageLoad));
+    assert.equal(summarizeTimings(rows, 0.75).pageLoad, 3);
+    assert.equal(summarizeTimings(rows, 0.95).pageLoad, 4);
   });
 });
 
@@ -96,7 +117,7 @@ describe("timingSeries", () => {
         pageLoad,
       })),
       [
-        { start: 10 * HOUR, samples: 2, pageLoad: 1000 },
+        { start: 10 * HOUR, samples: 2, pageLoad: 3000 },
         { start: 11 * HOUR, samples: 0, pageLoad: null },
         { start: 12 * HOUR, samples: 1, pageLoad: 500 },
         { start: 13 * HOUR, samples: 0, pageLoad: null },

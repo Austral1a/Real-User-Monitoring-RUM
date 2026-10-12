@@ -7,12 +7,16 @@
     title,
     keyHeader,
     rows,
+    selected,
     label = (key) => key,
+    onSelect,
   }: {
     title: string;
     keyHeader: string;
     rows: PageViewRow[];
+    selected?: string;
     label?: (key: string) => string;
+    onSelect?: (key: string) => void;
   } = $props();
 </script>
 
@@ -38,10 +42,21 @@
         </Table.Row>
       {:else}
         {#each rows as row (row.key)}
-          <Table.Row>
-            <Table.Cell class="whitespace-normal break-all"
-              >{label(row.key)}</Table.Cell
-            >
+          <Table.Row class={selected === row.key ? "bg-muted" : ""}>
+            <Table.Cell class="whitespace-normal break-all">
+              {#if onSelect}
+                <button
+                  type="button"
+                  class="hover:text-foreground w-full text-left break-all"
+                  aria-pressed={selected === row.key}
+                  onclick={() => onSelect(row.key)}
+                >
+                  {label(row.key)}
+                </button>
+              {:else}
+                {label(row.key)}
+              {/if}
+            </Table.Cell>
             <Table.Cell class="text-end tabular-nums whitespace-nowrap"
               >{formatCompact(row.count)}</Table.Cell
             >

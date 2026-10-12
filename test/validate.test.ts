@@ -60,6 +60,9 @@ describe("parseBatch", () => {
         pageLoad: 1235,
         ttfb: 80,
         startRender: 400,
+        lcp: null,
+        inp: null,
+        cls: null,
         message: null,
         source: null,
         status: null,
@@ -98,6 +101,32 @@ describe("parseBatch", () => {
     assert.equal(result.events[1].message, "Failed at https://a.com/page now");
     assert.equal(result.events[1].source, "https://a.com/chunk.js:10:5");
     assert.equal(result.events[2].source, "api.a.com/orders");
+  });
+
+  it("accepts web vitals on a timing event, including vitals-only rows", () => {
+    const result = parseBatch(
+      batch([
+        {
+          type: "timing",
+          path: "/",
+          lcp: 1800.4,
+          inp: 64,
+          cls: 120.2,
+        },
+      ]),
+    );
+    assert.ok(result.ok);
+    assert.equal(result.events[0].lcp, 1800);
+    assert.equal(result.events[0].inp, 64);
+    assert.equal(result.events[0].cls, 120);
+    assert.equal(result.events[0].pageLoad, null);
+  });
+
+  it("rejects cls above the thousandths cap", () => {
+    const result = parseBatch(
+      batch([{ type: "timing", path: "/", cls: 10_001 }]),
+    );
+    assert.equal(result.ok, false);
   });
 
   it("drops an unrecognised lang instead of rejecting the batch", () => {

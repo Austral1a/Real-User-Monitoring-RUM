@@ -5,6 +5,15 @@ export interface TimingSummary {
   pageLoad: number | null;
   ttfb: number | null;
   startRender: number | null;
+  lcp: number | null;
+  inp: number | null;
+  cls: number | null;
+}
+
+export interface Percentiles {
+  p50: TimingSummary;
+  p75: TimingSummary;
+  p95: TimingSummary;
 }
 
 export interface SeriesPoint extends TimingSummary {
@@ -47,10 +56,13 @@ export interface ErrorRow {
 export interface Overview {
   range: RangeKey;
   sessionKey: SessionKey;
+  path: string | null;
+  origin: string | null;
+  lang: string | null;
   from: number;
   to: number;
   totals: Totals;
-  p50: TimingSummary;
+  percentiles: Percentiles;
   series: SeriesPoint[];
   recentErrors: ErrorRow[];
   breakdowns: {
@@ -64,5 +76,7 @@ export interface Overview {
     country: PageViewRow[];
     browser: PageViewRow[];
     device: PageViewRow[];
+    origin: PageViewRow[];
+    lang: PageViewRow[];
   };
 }

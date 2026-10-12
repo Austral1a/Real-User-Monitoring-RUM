@@ -32,6 +32,10 @@ export interface RumEvent {
   pageLoad: number | null;
   ttfb: number | null;
   startRender: number | null;
+  lcp: number | null;
+  inp: number | null;
+  /** Cumulative layout shift in thousandths (0.12 → 120). */
+  cls: number | null;
   message: string | null;
   /** Error location (`file:line:col`) or, for network errors, the request host and path. */
   source: string | null;
@@ -42,6 +46,8 @@ export interface RumEvent {
 export interface StoredEvent extends RumEvent {
   receivedAt: number;
   country: string | null;
+  /** Page origin from the allowlisted `Origin` header; not taken from the body. */
+  origin: string | null;
   /** Salted hash of the client IP; the IP itself is never stored. */
   ipHash: string | null;
   /** Salted hash of the User-Agent header. */

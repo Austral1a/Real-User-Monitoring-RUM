@@ -17,6 +17,28 @@ export function formatMs(value: number | null | undefined): string {
     : `${Math.round(value)} ms`;
 }
 
+/** CLS is stored as integer thousandths (0.12 → 120). */
+export function formatCls(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "–";
+  return (value / 1000).toFixed(3);
+}
+
+export function formatP75P95(
+  p75: number | null,
+  p95: number | null,
+  format: (value: number | null) => string,
+): string {
+  return `p75 ${format(p75)} · p95 ${format(p95)}`;
+}
+
+export function formatP50P95(
+  p50: number | null,
+  p95: number | null,
+  format: (value: number | null) => string,
+): string {
+  return `p50 ${format(p50)} · p95 ${format(p95)}`;
+}
+
 export function formatCount(value: number): string {
   return numberFormat.format(value);
 }

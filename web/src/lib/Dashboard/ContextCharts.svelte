@@ -15,12 +15,12 @@
 
 <Card.Root>
   <Card.Header>
-    <Card.Title>Timing over time (p50)</Card.Title>
+    <Card.Title>Timing over time (p75)</Card.Title>
   </Card.Header>
   <Card.Content>
     <ChartPane
       config={timingChart(data.series, data.range)}
-      label="Median page load, time to first byte and start render over time"
+      label="p75 page load, TTFB, start render, LCP and INP over time"
       wide
     />
   </Card.Content>

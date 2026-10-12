@@ -13,6 +13,8 @@ const TIMING_SERIES = [
   { key: "pageLoad" as const, label: "Page load", color: COLORS[0] },
   { key: "ttfb" as const, label: "TTFB", color: COLORS[1] },
   { key: "startRender" as const, label: "Start render", color: COLORS[2] },
+  { key: "lcp" as const, label: "LCP", color: COLORS[3] },
+  { key: "inp" as const, label: "INP", color: COLORS[4] },
 ];
 
 export function timingChart(

@@ -4,7 +4,26 @@
   import RankedTable from "$lib/RankedTable.svelte";
   import type { Overview } from "$lib/types";
 
-  let { data }: { data: Overview } = $props();
+  let {
+    data,
+    path = $bindable(),
+    origin = $bindable(),
+    lang = $bindable(),
+  }: {
+    data: Overview;
+    path?: string;
+    origin?: string;
+    lang?: string;
+  } = $props();
+
+  function toggle(
+    key: "path" | "origin" | "lang",
+    value: string,
+  ) {
+    if (key === "path") path = path === value ? undefined : value;
+    else if (key === "origin") origin = origin === value ? undefined : value;
+    else lang = lang === value ? undefined : value;
+  }
 </script>
 
 <Card.Root>
@@ -22,6 +41,22 @@
         title="Top URLs"
         keyHeader="URL"
         rows={data.pageViews.path}
+        selected={path}
+        onSelect={(value) => toggle("path", value)}
+      />
+      <RankedTable
+        title="Top sites"
+        keyHeader="Site"
+        rows={data.pageViews.origin}
+        selected={origin}
+        onSelect={(value) => toggle("origin", value)}
+      />
+      <RankedTable
+        title="Top languages"
+        keyHeader="Language"
+        rows={data.pageViews.lang}
+        selected={lang}
+        onSelect={(value) => toggle("lang", value)}
       />
       <RankedTable
         title="Top countries"
@@ -29,19 +64,17 @@
         rows={data.pageViews.country}
         label={countryLabel}
       />
-      <div class="grid content-start gap-6">
-        <RankedTable
-          title="Top browsers"
-          keyHeader="Browser"
-          rows={data.pageViews.browser}
-        />
-        <RankedTable
-          title="Top devices"
-          keyHeader="Device"
-          rows={data.pageViews.device}
-          label={deviceLabel}
-        />
-      </div>
+      <RankedTable
+        title="Top browsers"
+        keyHeader="Browser"
+        rows={data.pageViews.browser}
+      />
+      <RankedTable
+        title="Top devices"
+        keyHeader="Device"
+        rows={data.pageViews.device}
+        label={deviceLabel}
+      />
     </section>
   </Card.Content>
 </Card.Root>

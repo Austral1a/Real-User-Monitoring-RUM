@@ -7,6 +7,24 @@ const ERROR_LABELS: Record<ErrorRow["type"], string> = {
   crash: "Crash",
 };
 
+export interface FilterChip {
+  key: "path" | "origin" | "lang";
+  label: string;
+  value: string;
+}
+
+export function filterChips(
+  path?: string,
+  origin?: string,
+  lang?: string,
+): FilterChip[] {
+  const chips: FilterChip[] = [];
+  if (path) chips.push({ key: "path", label: "URL", value: path });
+  if (origin) chips.push({ key: "origin", label: "Site", value: origin });
+  if (lang) chips.push({ key: "lang", label: "Language", value: lang });
+  return chips;
+}
+
 export function details(error: ErrorRow): string {
   if (error.type === "network_error") {
     return `${error.method} ${error.source} → ${error.status === 0 ? "failed" : error.status}`;

@@ -21,6 +21,10 @@ function event(overrides: Partial<StoredEvent>): StoredEvent {
     pageLoad: 1000,
     ttfb: 80,
     startRender: 400,
+    lcp: 1600,
+    inp: 80,
+    cls: 50,
+    origin: "https://variant.kharkov.com",
     message: null,
     source: null,
     status: null,
@@ -79,5 +83,54 @@ describe("session grouping", () => {
       event({ sessionId: "old-2", uaHash: null, ipHash: null }),
     ]);
     assert.deepEqual(counts(), { session: 2, ua: 2, ip: 2, "ua-ip": 2 });
+  });
+});
+
+describe("page loads and filters", () => {
+  let store: Store;
+  afterEach(() => store.close());
+
+  it("does not count vitals-only timing rows as page loads", () => {
+    store = openStore(":memory:");
+    store.insert([
+      event({ pageLoad: 1000 }),
+      event({
+        pageLoad: null,
+        ttfb: null,
+        startRender: null,
+        lcp: 1800,
+        inp: 40,
+        cls: 12,
+      }),
+    ]);
+    const totals = store.totals(WINDOW.from, WINDOW.to, "session");
+    assert.equal(totals.pageLoads, 1);
+    assert.equal(store.timings(WINDOW.from, WINDOW.to).length, 2);
+  });
+
+  it("filters reads by path, origin, and lang", () => {
+    store = openStore(":memory:");
+    store.insert([
+      event({ path: "/uk", origin: "https://a.test", lang: "uk" }),
+      event({
+        path: "/en",
+        origin: "https://b.test",
+        lang: "en",
+        sessionId: "session-2",
+      }),
+    ]);
+    const uk = store.totals(WINDOW.from, WINDOW.to, "session", { path: "/uk" });
+    assert.equal(uk.pageLoads, 1);
+    assert.equal(
+      store.pageViews("origin", WINDOW.from, WINDOW.to, { lang: "en" })[0]
+        ?.key,
+      "https://b.test",
+    );
+    assert.equal(
+      store.breakdown("device", WINDOW.from, WINDOW.to, "session", {
+        origin: "https://a.test",
+      }).length,
+      1,
+    );
   });
 });

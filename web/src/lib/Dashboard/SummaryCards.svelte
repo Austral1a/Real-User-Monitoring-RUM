@@ -1,10 +1,20 @@
 <script lang="ts">
   import * as Card from "$lib/components/ui/card/index.js";
   import { SESSION_TITLES } from "$lib/constants";
-  import { formatCount, formatMs } from "$lib/format";
+  import {
+    formatCls,
+    formatCount,
+    formatMs,
+    formatP50P95,
+    formatP75P95,
+  } from "$lib/format";
   import type { Overview } from "$lib/types";
 
   let { data }: { data: Overview } = $props();
+
+  const p50 = $derived(data.percentiles.p50);
+  const p75 = $derived(data.percentiles.p75);
+  const p95 = $derived(data.percentiles.p95);
 
   const cards = $derived([
     {
@@ -14,18 +24,33 @@
     },
     {
       title: "Page load (p50)",
-      value: formatMs(data.p50.pageLoad),
-      hint: "Fetch start to load event end",
+      value: formatMs(p50.pageLoad),
+      hint: formatP75P95(p75.pageLoad, p95.pageLoad, formatMs),
     },
     {
       title: "TTFB (p50)",
-      value: formatMs(data.p50.ttfb),
-      hint: "Request start to first byte",
+      value: formatMs(p50.ttfb),
+      hint: formatP75P95(p75.ttfb, p95.ttfb, formatMs),
     },
     {
       title: "Start render (p50)",
-      value: formatMs(data.p50.startRender),
-      hint: "First paint",
+      value: formatMs(p50.startRender),
+      hint: formatP75P95(p75.startRender, p95.startRender, formatMs),
+    },
+    {
+      title: "LCP (p75)",
+      value: formatMs(p75.lcp),
+      hint: formatP50P95(p50.lcp, p95.lcp, formatMs),
+    },
+    {
+      title: "INP (p75)",
+      value: formatMs(p75.inp),
+      hint: formatP50P95(p50.inp, p95.inp, formatMs),
+    },
+    {
+      title: "CLS (p75)",
+      value: formatCls(p75.cls),
+      hint: formatP50P95(p50.cls, p95.cls, formatCls),
     },
     {
       title: "Errors",

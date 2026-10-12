@@ -94,6 +94,10 @@ describe("POST /collect", () => {
       store.breakdown("country", NOW - 1000, NOW + 1000, "session"),
       [{ key: "UA", sessions: 1 }],
     );
+    assert.deepEqual(
+      store.pageViews("origin", NOW - 1000, NOW + 1000),
+      [{ key: SITE, pageLoad: 1500 }],
+    );
   });
 
   it("groups visitors by hashed IP and user-agent across session ids", async () => {
@@ -166,6 +170,10 @@ describe("dashboard", () => {
         pageLoad: 2000,
         ttfb: 100,
         startRender: 700,
+        lcp: 1800,
+        inp: 50,
+        cls: 40,
+        origin: SITE,
         message: null,
         source: null,
         status: null,
@@ -247,11 +255,20 @@ describe("dashboard", () => {
     assert.equal(overview.range, "7d");
     assert.equal(overview.sessionKey, "session");
     assert.equal(overview.totals.sessions, 1);
-    assert.deepEqual(overview.p50, {
+    assert.deepEqual(overview.percentiles.p50, {
       pageLoad: 2000,
       ttfb: 100,
       startRender: 700,
+      lcp: 1800,
+      inp: 50,
+      cls: 40,
     });
+    assert.deepEqual(overview.pageViews.origin, [
+      { key: SITE, count: 1, pageLoad: 2000 },
+    ]);
+    assert.deepEqual(overview.pageViews.lang, [
+      { key: "uk", count: 1, pageLoad: 2000 },
+    ]);
     // NOW sits on a 6-hour boundary, so 7 days split into exactly 28 buckets.
     assert.equal(overview.series.length, 28);
     assert.deepEqual(overview.breakdowns.connection, [
@@ -280,6 +297,40 @@ describe("dashboard", () => {
     const overview = (await response.json()) as Overview;
     assert.equal(overview.sessionKey, "ua-ip");
     assert.equal(overview.totals.sessions, 1);
+  });
+
+  it("filters the overview by path, origin, and lang", async () => {
+    const response = await fetch(
+      `${url}/api/overview?path=${encodeURIComponent("/uk")}&origin=${encodeURIComponent(SITE)}&lang=uk`,
+      { headers: { Authorization: auth } },
+    );
+    assert.equal(response.status, 200);
+    const overview = (await response.json()) as Overview;
+    assert.equal(overview.path, "/uk");
+    assert.equal(overview.origin, SITE);
+    assert.equal(overview.lang, "uk");
+    assert.equal(overview.totals.pageLoads, 1);
+
+    const miss = await fetch(`${url}/api/overview?path=/en`, {
+      headers: { Authorization: auth },
+    });
+    assert.equal(((await miss.json()) as Overview).totals.pageLoads, 0);
+  });
+
+  it("rejects invalid overview filters", async () => {
+    const badPath = await fetch(`${url}/api/overview?path=not-a-path`, {
+      headers: { Authorization: auth },
+    });
+    assert.equal(badPath.status, 400);
+    const badOrigin = await fetch(
+      `${url}/api/overview?origin=${encodeURIComponent("javascript:alert(1)")}`,
+      { headers: { Authorization: auth } },
+    );
+    assert.equal(badOrigin.status, 400);
+    const badLang = await fetch(`${url}/api/overview?lang=${encodeURIComponent("<script>")}`, {
+      headers: { Authorization: auth },
+    });
+    assert.equal(badLang.status, 400);
   });
 
   it("rejects unknown session keys", async () => {

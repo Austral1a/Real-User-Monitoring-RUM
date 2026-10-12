@@ -18,6 +18,9 @@
   const initial = readSearch();
   let range = $state<RangeKey>(initial.range);
   let sessionKey = $state<SessionKey>(initial.sessionKey);
+  let path = $state<string | undefined>(initial.path);
+  let origin = $state<string | undefined>(initial.origin);
+  let lang = $state<string | undefined>(initial.lang);
   let data = $state<Overview | null>(null);
   let status = $state("");
   let loadError = $state("");
@@ -27,7 +30,7 @@
     clearTimeout(timer);
     status = "Loading…";
     try {
-      data = await fetchOverview(range, sessionKey);
+      data = await fetchOverview(range, sessionKey, { path, origin, lang });
       loadError = "";
       status = `Updated ${new Date().toLocaleTimeString()}`;
     } catch (error) {
@@ -41,14 +44,24 @@
   $effect(() => {
     void range;
     void sessionKey;
-    writeSearch(range, sessionKey);
+    void path;
+    void origin;
+    void lang;
+    writeSearch({ range, sessionKey, path, origin, lang });
     void load();
   });
 
   onDestroy(() => clearTimeout(timer));
 </script>
 
-<Header bind:range bind:sessionKey {status} />
+<Header
+  bind:range
+  bind:sessionKey
+  bind:path
+  bind:origin
+  bind:lang
+  {status}
+/>
 
 <main class="mx-auto grid max-w-7xl gap-4 px-6 py-5 pb-10">
   {#if loadError}
@@ -70,7 +83,7 @@
 
   {#if data}
     <SummaryCards {data} />
-    <PageViews {data} />
+    <PageViews {data} bind:path bind:origin bind:lang />
     <ContextCharts {data} />
     <ErrorTable errors={data.recentErrors} />
   {/if}
