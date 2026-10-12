@@ -3,3 +3,4 @@ node_modules
 dist
 data
 AGENTS.md
+/plans
