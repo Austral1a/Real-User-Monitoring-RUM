@@ -49,7 +49,7 @@ async function start() {
     );
     process.exit(1);
   });
-  httpServer.listen(config.port, () => {
+  httpServer.listen(config.port, "0.0.0.0", () => {
     console.log(`[monitor] Listening on http://localhost:${config.port}`);
     console.log(
       `[monitor] Accepting beacons from ${[...config.siteOrigins].join(", ")}`,

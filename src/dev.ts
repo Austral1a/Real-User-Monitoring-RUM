@@ -13,6 +13,9 @@ export async function createViteMiddleware(
     server: {
       middlewareMode: true,
       hmr: { server: httpServer },
+      watch: {
+        usePolling: process.env.CHOKIDAR_USEPOLLING === "true",
+      },
     },
     appType: "spa",
   });

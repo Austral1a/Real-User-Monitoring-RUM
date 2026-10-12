@@ -1,0 +1,10 @@
+node_modules
+dist
+data
+.env
+.git
+.DS_Store
+test
+plans
+*.md
+AGENTS.md

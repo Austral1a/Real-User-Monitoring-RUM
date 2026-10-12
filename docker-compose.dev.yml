@@ -1,0 +1,26 @@
+# Local development with Vite HMR and tsx watch.
+#   docker compose -f docker-compose.dev.yml up --build
+
+services:
+  monitor:
+    build:
+      context: .
+      target: development
+    init: true
+    ports:
+      - "${MONITOR_PORT:-4000}:4000"
+    environment:
+      NODE_ENV: development
+      MONITOR_DEV: "1"
+      MONITOR_PORT: "4000"
+      MONITOR_DB_PATH: /app/data/rum.sqlite
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ./src:/app/src
+      - ./web:/app/web
+      - ./public:/app/public
+      - ./tsconfig.json:/app/tsconfig.json
+      - monitor-data-dev:/app/data
+
+volumes:
+  monitor-data-dev:
