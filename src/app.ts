@@ -12,8 +12,9 @@ import { isBot, parseBrowser } from "./browser";
 import type { Config } from "./config";
 import { countryFor, requestIp } from "./geo";
 import { createClientHasher } from "./identity";
+import { createRateLimiter, UNKNOWN_RATE_KEY, type RateLimiter } from "./limit";
 import { buildOverview, isRangeKey, isSessionKey } from "./overview";
-import { DIST_DIR, RUM_SCRIPT } from "./paths";
+import { DIST_DIR, RUM_SCRIPT, THEME_SCRIPT } from "./paths";
 import type { EventFilter, Store } from "./store";
 import {
   parseBatch,
@@ -31,6 +32,7 @@ export interface AppDependencies {
   now?: () => number;
   /** Vite middleware used by `pnpm dev`. Production serves `dist/` instead. */
   vite?: RequestHandler;
+  rateLimiter?: RateLimiter;
 }
 
 function dashboardCsp(dev: boolean): string {
@@ -52,23 +54,16 @@ export function createApp({
   store,
   now = Date.now,
   vite,
+  rateLimiter = createRateLimiter(),
 }: AppDependencies): Express {
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", config.trustProxy);
   const hashClient = createClientHasher(config.hashSalt);
+  const { trustProxy } = config;
 
-  app.get("/rum.js", (_req, res) => {
-    res.sendFile(RUM_SCRIPT, {
-      // `send` 404s files under a hidden directory, e.g. `.Trash` or `.local`.
-      dotfiles: "allow",
-      headers: {
-        "Cache-Control": "public, max-age=300",
-        "Cross-Origin-Resource-Policy": "cross-origin",
-        "X-Content-Type-Options": "nosniff",
-      },
-    });
-  });
+  app.get("/rum.js", sendPublicScript(RUM_SCRIPT));
+  app.get("/theme.js", sendPublicScript(THEME_SCRIPT));
 
   const allowSiteOrigin: RequestHandler = (req, res, next) => {
     const origin = req.get("origin");
@@ -82,9 +77,19 @@ export function createApp({
     res.status(403).json({ error: "Origin not allowed" });
   };
 
+  const limitCollect: RequestHandler = (req, res, next) => {
+    const key = requestIp(req, trustProxy) ?? UNKNOWN_RATE_KEY;
+    if (!rateLimiter.allow(key)) {
+      res.status(429).json({ error: "Too many requests" });
+      return;
+    }
+    next();
+  };
+
   app.post(
     "/collect",
     allowSiteOrigin,
+    limitCollect,
     // sendBeacon posts text/plain so the browser skips the CORS preflight.
     express.text({ type: () => true, limit: MAX_BODY_BYTES }),
     (req, res) => {
@@ -100,8 +105,8 @@ export function createApp({
       }
 
       const receivedAt = now();
-      const ip = requestIp(req);
-      const country = countryFor(req.get("cf-ipcountry"), ip);
+      const ip = requestIp(req, trustProxy);
+      const country = countryFor(req.get("cf-ipcountry"), ip, trustProxy);
       const userAgent = req.get("user-agent");
       const { ipHash, uaHash } = hashClient(ip, userAgent);
       const browser = parseBrowser(userAgent);
@@ -217,6 +222,20 @@ function parseOverviewFilter(
       lang: lang.value,
       bot: bot.value,
     },
+  };
+}
+
+function sendPublicScript(file: string): RequestHandler {
+  return (_req, res) => {
+    res.sendFile(file, {
+      // `send` 404s files under a hidden directory, e.g. `.Trash` or `.local`.
+      dotfiles: "allow",
+      headers: {
+        "Cache-Control": "public, max-age=300",
+        "Cross-Origin-Resource-Policy": "cross-origin",
+        "X-Content-Type-Options": "nosniff",
+      },
+    });
   };
 }
 

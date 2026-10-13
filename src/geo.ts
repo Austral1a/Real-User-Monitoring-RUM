@@ -10,28 +10,41 @@ export interface IpRequest {
   socket: { remoteAddress?: string };
 }
 
+export type TrustProxy = boolean | number | string;
+
+export function trustForwarded(trustProxy: TrustProxy): boolean {
+  return trustProxy !== false;
+}
+
 export function countryFor(
   cfCountry: string | undefined,
   ip: string | undefined,
+  trustProxy: TrustProxy = false,
 ): string | null {
-  const header = cfCountry?.trim().toUpperCase();
-  if (header && COUNTRY_CODE.test(header) && !UNKNOWN_CODES.has(header)) {
-    return header;
+  if (trustForwarded(trustProxy)) {
+    const header = cfCountry?.trim().toUpperCase();
+    if (header && COUNTRY_CODE.test(header) && !UNKNOWN_CODES.has(header)) {
+      return header;
+    }
   }
 
   if (!ip) return null;
   return geoip.lookup(normalizeIp(ip))?.country ?? null;
 }
 
-/** Visitor IP: Cloudflare/Akamai first, then Express (`trust proxy`), then the socket. */
-export function requestIp(req: IpRequest): string | undefined {
-  const candidates = [
-    req.get("cf-connecting-ip"),
-    req.get("true-client-ip"),
-    req.get("x-real-ip"),
-    req.ip,
-    req.socket.remoteAddress,
-  ];
+/** Visitor IP. Forwarded headers are used only when `trustProxy` is on. */
+export function requestIp(
+  req: IpRequest,
+  trustProxy: TrustProxy = false,
+): string | undefined {
+  const forwarded = trustForwarded(trustProxy)
+    ? [
+        req.get("cf-connecting-ip"),
+        req.get("true-client-ip"),
+        req.get("x-real-ip"),
+      ]
+    : [];
+  const candidates = [...forwarded, req.ip, req.socket.remoteAddress];
   for (const raw of candidates) {
     const ip = firstHop(raw);
     if (ip) return ip;

@@ -12,6 +12,7 @@
   import ContextCharts from "./ContextCharts.svelte";
   import ErrorTable from "./ErrorTable.svelte";
   import Header from "./Header.svelte";
+  import { isAbortError } from "./helpers";
   import PageViews from "./PageViews.svelte";
   import SummaryCards from "./SummaryCards.svelte";
 
@@ -26,18 +27,33 @@
   let status = $state("");
   let loadError = $state("");
   let timer = 0;
+  let generation = 0;
+  let abort: AbortController | undefined;
 
   async function load() {
+    abort?.abort();
+    abort = new AbortController();
+    const id = ++generation;
+    const signal = abort.signal;
     clearTimeout(timer);
     status = "Loading…";
     try {
-      data = await fetchOverview(range, sessionKey, { path, origin, lang, bot });
+      const next = await fetchOverview(
+        range,
+        sessionKey,
+        { path, origin, lang, bot },
+        signal,
+      );
+      if (id !== generation) return;
+      data = next;
       loadError = "";
       status = `Updated ${new Date().toLocaleTimeString()}`;
     } catch (error) {
+      if (id !== generation || isAbortError(error)) return;
       loadError = `Could not load metrics: ${error instanceof Error ? error.message : String(error)}`;
       status = "";
     } finally {
+      if (id !== generation) return;
       timer = window.setTimeout(load, REFRESH_MS);
     }
   }
@@ -53,7 +69,11 @@
     void load();
   });
 
-  onDestroy(() => clearTimeout(timer));
+  onDestroy(() => {
+    clearTimeout(timer);
+    generation += 1;
+    abort?.abort();
+  });
 </script>
 
 <Header

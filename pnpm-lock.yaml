@@ -20,6 +20,9 @@ importers:
       geoip-country:
         specifier: ^5.0.202610100242
         version: 5.0.202610100242
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
     devDependencies:
       '@lucide/svelte':
         specifier: ^1.55.0
@@ -57,9 +60,6 @@ importers:
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
       tw-animate-css:
         specifier: ^1.4.0
         version: 1.4.0

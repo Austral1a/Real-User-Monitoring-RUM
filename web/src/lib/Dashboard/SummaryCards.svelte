@@ -25,7 +25,7 @@
     {
       title: "Page load (p50)",
       value: formatMs(p50.pageLoad),
-      hint: formatP75P95(p75.pageLoad, p95.pageLoad, formatMs),
+      hint: `${formatP75P95(p75.pageLoad, p95.pageLoad, formatMs)} · navigation load, or LCP on client-side routes`,
     },
     {
       title: "TTFB (p50)",

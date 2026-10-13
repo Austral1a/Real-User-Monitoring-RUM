@@ -203,6 +203,10 @@ export function openStore(path: string): Store {
   db.pragma("journal_mode = WAL");
   db.exec(SCHEMA);
   addMissingColumns(db);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS events_received_at_type ON events (received_at, type);
+    CREATE INDEX IF NOT EXISTS events_received_at_bot ON events (received_at, bot);
+  `);
 
   const insertEvent = db.prepare(`
     INSERT INTO events (

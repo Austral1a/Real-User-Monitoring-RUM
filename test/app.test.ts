@@ -9,6 +9,7 @@ import type { RequestHandler } from "express";
 import { createApp, MAX_BODY_BYTES } from "../src/app";
 import { loadConfig, type Config } from "../src/config";
 import { countryFor, requestIp } from "../src/geo";
+import { createRateLimiter } from "../src/limit";
 import type { Overview } from "../src/overview";
 import { DIST_DIR } from "../src/paths";
 import { openStore, type Store } from "../src/store";
@@ -31,8 +32,15 @@ async function startServer(
   config: Config,
   store: Store,
   vite?: RequestHandler,
+  rateLimiter?: ReturnType<typeof createRateLimiter>,
 ) {
-  const server = createApp({ config, store, now: () => NOW, vite }).listen(0);
+  const server = createApp({
+    config,
+    store,
+    now: () => NOW,
+    vite,
+    rateLimiter,
+  }).listen(0);
   await new Promise<void>((resolve) => server.once("listening", resolve));
   const { port } = server.address() as AddressInfo;
   return { server, url: `http://127.0.0.1:${port}` };
@@ -58,7 +66,7 @@ describe("POST /collect", () => {
 
   before(async () => {
     store = openStore(":memory:");
-    const started = await startServer(testConfig(), store);
+    const started = await startServer(testConfig({ trustProxy: true }), store);
     url = started.url;
     close = () => started.server.close();
   });
@@ -235,9 +243,12 @@ describe("dashboard", () => {
   });
 
   it("keeps the snippet public", async () => {
-    const response = await fetch(`${url}/rum.js`);
-    assert.equal(response.status, 200);
-    assert.match(response.headers.get("content-type") ?? "", /javascript/);
+    const rum = await fetch(`${url}/rum.js`);
+    assert.equal(rum.status, 200);
+    assert.match(rum.headers.get("content-type") ?? "", /javascript/);
+    const theme = await fetch(`${url}/theme.js`);
+    assert.equal(theme.status, 200);
+    assert.match(theme.headers.get("content-type") ?? "", /javascript/);
   });
 
   it("serves the Svelte dashboard from dist when it is built", async () => {
@@ -391,13 +402,17 @@ describe("dashboard", () => {
 });
 
 describe("countryFor", () => {
-  it("prefers a valid CF-IPCountry header", () => {
-    assert.equal(countryFor("hu", "8.8.8.8"), "HU");
+  it("prefers a valid CF-IPCountry header when the proxy is trusted", () => {
+    assert.equal(countryFor("hu", "8.8.8.8", true), "HU");
+  });
+
+  it("ignores CF-IPCountry when the proxy is not trusted", () => {
+    assert.equal(countryFor("hu", "8.8.8.8", false), "US");
   });
 
   it("falls back to an IP lookup when Cloudflare sends XX or T1", () => {
-    assert.equal(countryFor("XX", "8.8.8.8"), "US");
-    assert.equal(countryFor("T1", "8.8.8.8"), "US");
+    assert.equal(countryFor("XX", "8.8.8.8", true), "US");
+    assert.equal(countryFor("T1", "8.8.8.8", true), "US");
   });
 
   it("falls back to an IP lookup, including IPv4-mapped addresses", () => {
@@ -407,27 +422,44 @@ describe("countryFor", () => {
 });
 
 describe("requestIp", () => {
-  it("prefers Cloudflare and Real-IP headers over req.ip", () => {
+  it("prefers Cloudflare and Real-IP headers over req.ip when trusted", () => {
     assert.equal(
       requestIp(
         fakeReq({
           "cf-connecting-ip": "8.8.8.8",
           "x-real-ip": "1.1.1.1",
         }),
+        true,
       ),
       "8.8.8.8",
     );
-    assert.equal(requestIp(fakeReq({ "true-client-ip": "1.1.1.1" })), "1.1.1.1");
+    assert.equal(
+      requestIp(fakeReq({ "true-client-ip": "1.1.1.1" }), true),
+      "1.1.1.1",
+    );
     assert.equal(requestIp(fakeReq({}, "9.9.9.9")), "9.9.9.9");
+  });
+
+  it("ignores forwarded headers when the proxy is not trusted", () => {
+    assert.equal(
+      requestIp(
+        fakeReq({
+          "cf-connecting-ip": "8.8.8.8",
+          "x-real-ip": "1.1.1.1",
+        }),
+        false,
+      ),
+      "127.0.0.1",
+    );
   });
 
   it("uses the first hop and strips brackets", () => {
     assert.equal(
-      requestIp(fakeReq({ "cf-connecting-ip": "8.8.8.8, 10.0.0.1" })),
+      requestIp(fakeReq({ "cf-connecting-ip": "8.8.8.8, 10.0.0.1" }), true),
       "8.8.8.8",
     );
     assert.equal(
-      requestIp(fakeReq({ "cf-connecting-ip": "[2001:4860:4860::8888]" })),
+      requestIp(fakeReq({ "cf-connecting-ip": "[2001:4860:4860::8888]" }), true),
       "2001:4860:4860::8888",
     );
   });
@@ -436,7 +468,7 @@ describe("requestIp", () => {
 describe("POST /collect country from connecting IP", () => {
   it("looks up the country when CF-IPCountry is XX", async () => {
     const store = openStore(":memory:");
-    const started = await startServer(testConfig(), store);
+    const started = await startServer(testConfig({ trustProxy: true }), store);
     const response = await fetch(`${started.url}/collect`, {
       method: "POST",
       headers: {
@@ -452,6 +484,62 @@ describe("POST /collect country from connecting IP", () => {
       store.breakdown("country", NOW - 1000, NOW + 1000, "session"),
       [{ key: "US", sessions: 1 }],
     );
+    started.server.close();
+    store.close();
+  });
+
+  it("ignores spoofed forwarded IP headers without a trusted proxy", async () => {
+    const store = openStore(":memory:");
+    const started = await startServer(testConfig(), store);
+    const response = await fetch(`${started.url}/collect`, {
+      method: "POST",
+      headers: {
+        Origin: SITE,
+        "Content-Type": "text/plain;charset=UTF-8",
+        "X-Real-IP": "8.8.8.8",
+        "CF-IPCountry": "US",
+      },
+      body: validBody,
+    });
+    assert.equal(response.status, 204);
+    assert.deepEqual(
+      store.breakdown("country", NOW - 1000, NOW + 1000, "session"),
+      [{ key: "unknown", sessions: 1 }],
+    );
+    started.server.close();
+    store.close();
+  });
+});
+
+describe("POST /collect rate limit", () => {
+  it("rejects further beacons from the same IP after the cap", async () => {
+    const store = openStore(":memory:");
+    const started = await startServer(
+      testConfig({ trustProxy: true }),
+      store,
+      undefined,
+      createRateLimiter({ max: 2, windowMs: 60_000, now: () => NOW }),
+    );
+    async function collect(sessionId: string, ip: string) {
+      return fetch(`${started.url}/collect`, {
+        method: "POST",
+        headers: {
+          Origin: SITE,
+          "Content-Type": "text/plain;charset=UTF-8",
+          "X-Real-IP": ip,
+        },
+        body: JSON.stringify({
+          ...JSON.parse(validBody),
+          sessionId,
+        }),
+      });
+    }
+    assert.equal((await collect("session-rate1", "1.1.1.1")).status, 204);
+    assert.equal((await collect("session-rate2", "1.1.1.1")).status, 204);
+    const limited = await collect("session-rate3", "1.1.1.1");
+    assert.equal(limited.status, 429);
+    assert.deepEqual(await limited.json(), { error: "Too many requests" });
+    assert.equal((await collect("session-rate4", "8.8.8.8")).status, 204);
     started.server.close();
     store.close();
   });

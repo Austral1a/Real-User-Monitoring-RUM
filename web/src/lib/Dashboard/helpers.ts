@@ -1,6 +1,10 @@
 import type { BadgeVariant } from "$lib/components/ui/badge/index.js";
 import type { ErrorRow } from "$lib/types";
 
+export function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
 const ERROR_LABELS: Record<ErrorRow["type"], string> = {
   js_error: "JS error",
   network_error: "Network",

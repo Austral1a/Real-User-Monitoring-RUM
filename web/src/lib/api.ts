@@ -4,6 +4,7 @@ export async function fetchOverview(
   range: RangeKey,
   sessionKey: SessionKey,
   filter: { path?: string; origin?: string; lang?: string; bot?: BotKey } = {},
+  signal?: AbortSignal,
 ): Promise<Overview> {
   const query = new URLSearchParams({
     range,
@@ -15,6 +16,7 @@ export async function fetchOverview(
   if (filter.lang) query.set("lang", filter.lang);
   const response = await fetch(`/api/overview?${query}`, {
     headers: { Accept: "application/json" },
+    signal,
   });
   if (!response.ok) {
     throw new Error(`request failed with status ${response.status}`);
