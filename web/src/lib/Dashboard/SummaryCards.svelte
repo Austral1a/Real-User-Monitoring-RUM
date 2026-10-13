@@ -1,6 +1,5 @@
 <script lang="ts">
-  import * as Card from "$lib/components/ui/card/index.js";
-  import { SESSION_TITLES } from "$lib/constants";
+  import * as Card from "$lib/Components/Ui/Card/index.js";
   import {
     formatCls,
     formatCount,
@@ -9,10 +8,18 @@
     formatP50P95,
     formatP75P95,
     formatVitalGood,
-  } from "$lib/format";
-  import type { Overview } from "$lib/types";
+  } from "$lib/Shared/Format";
+  import { t, type MessageKey } from "$lib/I18n";
+  import type { Overview, SessionKey } from "$lib/Shared/Types";
 
   let { data }: { data: Overview } = $props();
+
+  const SESSION_TITLE_KEYS: Record<SessionKey, MessageKey> = {
+    session: "summary.sessions",
+    ua: "summary.sessionsByUa",
+    ip: "summary.sessionsByIp",
+    "ua-ip": "summary.sessionsByUaIp",
+  };
 
   const p50 = $derived(data.percentiles.p50);
   const p75 = $derived(data.percentiles.p75);
@@ -21,60 +28,65 @@
 
   const cards = $derived([
     {
-      title: SESSION_TITLES[data.sessionKey],
+      title: t(SESSION_TITLE_KEYS[data.sessionKey]),
       value: formatCount(data.totals.sessions),
-      hint: `${formatCount(data.totals.pageLoads)} page loads measured`,
+      hint: t("summary.pageLoadsMeasured", {
+        count: formatCount(data.totals.pageLoads),
+      }),
       delta: formatDelta(data.totals.sessions, prev.totals.sessions),
     },
     {
-      title: "Page load (p50)",
+      title: t("summary.pageLoadP50"),
       value: formatMs(p50.pageLoad),
-      hint: `${formatP75P95(p75.pageLoad, p95.pageLoad, formatMs)} · navigation load, or LCP on client-side routes`,
+      hint: `${formatP75P95(p75.pageLoad, p95.pageLoad, formatMs)} · ${t("summary.pageLoadHint")}`,
       delta: formatDelta(p50.pageLoad, prev.percentiles.p50.pageLoad),
     },
     {
-      title: "TTFB (p50)",
+      title: t("summary.ttfbP50"),
       value: formatMs(p50.ttfb),
       hint: formatP75P95(p75.ttfb, p95.ttfb, formatMs),
       delta: formatDelta(p50.ttfb, prev.percentiles.p50.ttfb),
     },
     {
-      title: "Start render (p50)",
+      title: t("summary.startRenderP50"),
       value: formatMs(p50.startRender),
       hint: formatP75P95(p75.startRender, p95.startRender, formatMs),
       delta: formatDelta(p50.startRender, prev.percentiles.p50.startRender),
     },
     {
-      title: "LCP (p75)",
+      title: t("summary.lcpP75"),
       value: formatMs(p75.lcp),
       hint: `${formatP50P95(p50.lcp, p95.lcp, formatMs)} · ${formatVitalGood(data.vitals.lcp)}`,
       delta: formatDelta(p75.lcp, prev.percentiles.p75.lcp),
     },
     {
-      title: "INP (p75)",
+      title: t("summary.inpP75"),
       value: formatMs(p75.inp),
       hint: `${formatP50P95(p50.inp, p95.inp, formatMs)} · ${formatVitalGood(data.vitals.inp)}`,
       delta: formatDelta(p75.inp, prev.percentiles.p75.inp),
     },
     {
-      title: "CLS (p75)",
+      title: t("summary.clsP75"),
       value: formatCls(p75.cls),
       hint: `${formatP50P95(p50.cls, p95.cls, formatCls)} · ${formatVitalGood(data.vitals.cls)}`,
       delta: formatDelta(p75.cls, prev.percentiles.p75.cls),
     },
     {
-      title: "Errors",
+      title: t("summary.errors"),
       value: formatCount(data.totals.jsErrors + data.totals.networkErrors),
-      hint: `${formatCount(data.totals.jsErrors)} JS · ${formatCount(data.totals.networkErrors)} network`,
+      hint: t("summary.errorsHint", {
+        js: formatCount(data.totals.jsErrors),
+        network: formatCount(data.totals.networkErrors),
+      }),
       delta: formatDelta(
         data.totals.jsErrors + data.totals.networkErrors,
         prev.totals.jsErrors + prev.totals.networkErrors,
       ),
     },
     {
-      title: "Crashed sessions",
+      title: t("summary.crashedSessions"),
       value: formatCount(data.totals.crashedSessions),
-      hint: "Left before the page finished loading",
+      hint: t("summary.crashHint"),
       delta: formatDelta(
         data.totals.crashedSessions,
         prev.totals.crashedSessions,
@@ -85,7 +97,7 @@
 
 <section
   class="grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-3"
-  aria-label="Summary"
+  aria-label={t("summary.aria")}
 >
   {#each cards as card (card.title)}
     <Card.Root size="sm">

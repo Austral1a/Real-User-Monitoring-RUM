@@ -5,22 +5,24 @@
     countryChart,
     doughnutChart,
     timingChart,
-  } from "$lib/charts";
-  import ChartPane from "$lib/ChartPane.svelte";
-  import * as Card from "$lib/components/ui/card/index.js";
-  import type { Overview } from "$lib/types";
+  } from "$lib/Charts";
+  import ChartPane from "$lib/Charts/ChartPane.svelte";
+  import * as Card from "$lib/Components/Ui/Card/index.js";
+  import { deviceLabel } from "$lib/Shared/Format";
+  import { t } from "$lib/I18n";
+  import type { Overview } from "$lib/Shared/Types";
 
   let { data }: { data: Overview } = $props();
 </script>
 
 <Card.Root>
   <Card.Header>
-    <Card.Title>Timing over time (p75)</Card.Title>
+    <Card.Title>{t("charts.timingTitle")}</Card.Title>
   </Card.Header>
   <Card.Content>
     <ChartPane
       config={timingChart(data.series, data.range)}
-      label="p75 page load, TTFB, start render, LCP and INP over time"
+      label={t("charts.timingLabel")}
       wide
     />
   </Card.Content>
@@ -28,49 +30,49 @@
 
 <section
   class="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4"
-  aria-label="User context"
+  aria-label={t("charts.context")}
 >
   <Card.Root>
     <Card.Header>
-      <Card.Title>Devices</Card.Title>
+      <Card.Title>{t("charts.devices")}</Card.Title>
     </Card.Header>
     <Card.Content>
       <ChartPane
-        config={doughnutChart(data.breakdowns.device)}
-        label="Sessions by device type"
+        config={doughnutChart(data.breakdowns.device, deviceLabel)}
+        label={t("charts.devicesLabel")}
       />
     </Card.Content>
   </Card.Root>
   <Card.Root>
     <Card.Header>
-      <Card.Title>Operating systems</Card.Title>
+      <Card.Title>{t("charts.os")}</Card.Title>
     </Card.Header>
     <Card.Content>
       <ChartPane
         config={barChart(data.breakdowns.os)}
-        label="Sessions by operating system"
+        label={t("charts.osLabel")}
       />
     </Card.Content>
   </Card.Root>
   <Card.Root>
     <Card.Header>
-      <Card.Title>Connection speed</Card.Title>
+      <Card.Title>{t("charts.connection")}</Card.Title>
     </Card.Header>
     <Card.Content>
       <ChartPane
         config={connectionChart(data.breakdowns.connection)}
-        label="Sessions by effective connection type"
+        label={t("charts.connectionLabel")}
       />
     </Card.Content>
   </Card.Root>
   <Card.Root>
     <Card.Header>
-      <Card.Title>Countries</Card.Title>
+      <Card.Title>{t("charts.countries")}</Card.Title>
     </Card.Header>
     <Card.Content>
       <ChartPane
         config={countryChart(data.breakdowns.country)}
-        label="Sessions by country"
+        label={t("charts.countriesLabel")}
       />
     </Card.Content>
   </Card.Root>

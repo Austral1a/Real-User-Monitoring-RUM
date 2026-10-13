@@ -134,7 +134,9 @@ function parseWebhook(value: string | undefined): string | null {
     if (error instanceof Error && error.message.startsWith("MONITOR_")) {
       throw error;
     }
-    throw new Error("MONITOR_ALERT_WEBHOOK must be an http(s) URL");
+    throw new Error("MONITOR_ALERT_WEBHOOK must be an http(s) URL", {
+      cause: error,
+    });
   }
 }
 

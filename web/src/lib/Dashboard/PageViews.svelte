@@ -1,8 +1,9 @@
 <script lang="ts">
-  import * as Card from "$lib/components/ui/card/index.js";
-  import { countryLabel, deviceLabel } from "$lib/format";
-  import RankedTable from "$lib/RankedTable.svelte";
-  import type { Overview } from "$lib/types";
+  import * as Card from "$lib/Components/Ui/Card/index.js";
+  import { countryLabel, deviceLabel } from "$lib/Shared/Format";
+  import { t } from "$lib/I18n";
+  import RankedTable from "$lib/Components/RankedTable.svelte";
+  import type { Overview } from "$lib/Shared/Types";
 
   let {
     data,
@@ -35,7 +36,7 @@
 <Card.Root>
   <Card.Header class="items-center">
     <Card.Title id="pageviews-title" class="text-base"
-      >Page views breakdown</Card.Title
+      >{t("pageViews.title")}</Card.Title
     >
   </Card.Header>
   <Card.Content>
@@ -44,54 +45,54 @@
       aria-labelledby="pageviews-title"
     >
       <RankedTable
-        title="Top URLs"
-        keyHeader="URL"
+        title={t("pageViews.topUrls")}
+        keyHeader={t("pageViews.url")}
         rows={data.pageViews.path}
         selected={path}
         onSelect={(value) => toggle("path", value)}
       />
       <RankedTable
-        title="Top sites"
-        keyHeader="Site"
+        title={t("pageViews.topSites")}
+        keyHeader={t("pageViews.site")}
         rows={data.pageViews.origin}
         selected={origin}
         onSelect={(value) => toggle("origin", value)}
       />
       <RankedTable
-        title="Top languages"
-        keyHeader="Language"
+        title={t("pageViews.topLanguages")}
+        keyHeader={t("pageViews.language")}
         rows={data.pageViews.lang}
         selected={lang}
         onSelect={(value) => toggle("lang", value)}
       />
       <RankedTable
-        title="Top page locales"
-        keyHeader="Locale"
+        title={t("pageViews.topLocales")}
+        keyHeader={t("pageViews.locale")}
         rows={data.pageViews.locale}
         selected={locale}
         onSelect={(value) => toggle("locale", value)}
       />
       <RankedTable
-        title="Top releases"
-        keyHeader="Release"
+        title={t("pageViews.topReleases")}
+        keyHeader={t("pageViews.release")}
         rows={data.pageViews.release}
         selected={release}
         onSelect={(value) => toggle("release", value)}
       />
       <RankedTable
-        title="Top countries"
-        keyHeader="Country"
+        title={t("pageViews.topCountries")}
+        keyHeader={t("pageViews.country")}
         rows={data.pageViews.country}
         label={countryLabel}
       />
       <RankedTable
-        title="Top browsers"
-        keyHeader="Browser"
+        title={t("pageViews.topBrowsers")}
+        keyHeader={t("pageViews.browser")}
         rows={data.pageViews.browser}
       />
       <RankedTable
-        title="Top devices"
-        keyHeader="Device"
+        title={t("pageViews.topDevices")}
+        keyHeader={t("pageViews.device")}
         rows={data.pageViews.device}
         label={deviceLabel}
       />

@@ -1,8 +1,9 @@
 <script lang="ts">
-  import * as Card from "$lib/components/ui/card/index.js";
-  import * as Table from "$lib/components/ui/table/index.js";
-  import { formatCount, formatMs } from "$lib/format";
-  import type { SiteRow } from "$lib/types";
+  import * as Card from "$lib/Components/Ui/Card/index.js";
+  import * as Table from "$lib/Components/Ui/Table/index.js";
+  import { formatCount, formatMs } from "$lib/Shared/Format";
+  import { t } from "$lib/I18n";
+  import type { SiteRow } from "$lib/Shared/Types";
 
   let {
     sites,
@@ -17,24 +18,24 @@
 
 <Card.Root>
   <Card.Header>
-    <Card.Title>Sites</Card.Title>
+    <Card.Title>{t("sites.title")}</Card.Title>
   </Card.Header>
   <Card.Content>
     <Table.Root>
       <Table.Header>
         <Table.Row>
-          <Table.Head>Origin</Table.Head>
-          <Table.Head class="w-24 text-end">Sessions</Table.Head>
-          <Table.Head class="w-28 text-end">Page loads</Table.Head>
-          <Table.Head class="w-24 text-end">p75 LCP</Table.Head>
-          <Table.Head class="w-24 text-end">JS errors</Table.Head>
+          <Table.Head>{t("sites.origin")}</Table.Head>
+          <Table.Head class="w-24 text-end">{t("sites.sessions")}</Table.Head>
+          <Table.Head class="w-28 text-end">{t("sites.pageLoads")}</Table.Head>
+          <Table.Head class="w-24 text-end">{t("sites.p75Lcp")}</Table.Head>
+          <Table.Head class="w-24 text-end">{t("sites.jsErrors")}</Table.Head>
         </Table.Row>
       </Table.Header>
       <Table.Body>
         {#if sites.length === 0}
           <Table.Row>
             <Table.Cell colspan={5} class="text-muted-foreground text-center">
-              No sites in this period
+              {t("sites.empty")}
             </Table.Cell>
           </Table.Row>
         {:else}

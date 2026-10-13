@@ -1,29 +1,30 @@
 <script lang="ts">
-  import * as Card from "$lib/components/ui/card/index.js";
-  import * as Table from "$lib/components/ui/table/index.js";
-  import { formatCount } from "$lib/format";
-  import type { CustomEventRow } from "$lib/types";
+  import * as Card from "$lib/Components/Ui/Card/index.js";
+  import * as Table from "$lib/Components/Ui/Table/index.js";
+  import { formatCount } from "$lib/Shared/Format";
+  import { t } from "$lib/I18n";
+  import type { CustomEventRow } from "$lib/Shared/Types";
 
   let { events }: { events: CustomEventRow[] } = $props();
 </script>
 
 <Card.Root>
   <Card.Header>
-    <Card.Title>Custom events</Card.Title>
+    <Card.Title>{t("customEvents.title")}</Card.Title>
   </Card.Header>
   <Card.Content>
     <Table.Root>
       <Table.Header>
         <Table.Row>
-          <Table.Head>Name</Table.Head>
-          <Table.Head class="w-24 text-end">Count</Table.Head>
+          <Table.Head>{t("customEvents.name")}</Table.Head>
+          <Table.Head class="w-24 text-end">{t("customEvents.count")}</Table.Head>
         </Table.Row>
       </Table.Header>
       <Table.Body>
         {#if events.length === 0}
           <Table.Row>
             <Table.Cell colspan={2} class="text-muted-foreground text-center">
-              No custom events in this period
+              {t("customEvents.empty")}
             </Table.Cell>
           </Table.Row>
         {:else}

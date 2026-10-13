@@ -1,29 +1,30 @@
 <script lang="ts">
-  import { Badge } from "$lib/components/ui/badge/index.js";
-  import * as Card from "$lib/components/ui/card/index.js";
-  import * as Table from "$lib/components/ui/table/index.js";
-  import { countryLabel } from "$lib/format";
-  import type { ErrorRow } from "$lib/types";
+  import { Badge } from "$lib/Components/Ui/Badge/index.js";
+  import * as Card from "$lib/Components/Ui/Card/index.js";
+  import * as Table from "$lib/Components/Ui/Table/index.js";
+  import { countryLabel, formatDateTime } from "$lib/Shared/Format";
+  import { t } from "$lib/I18n";
+  import type { ErrorRow } from "$lib/Shared/Types";
 
-  import { details, errorBadge } from "./helpers";
+  import { details, errorBadge } from "./Helpers";
 
   let { errors }: { errors: ErrorRow[] } = $props();
 </script>
 
 <Card.Root>
   <Card.Header>
-    <Card.Title>Recent errors</Card.Title>
+    <Card.Title>{t("errors.recentTitle")}</Card.Title>
   </Card.Header>
   <Card.Content>
     <Table.Root>
       <Table.Header>
         <Table.Row>
-          <Table.Head>Time</Table.Head>
-          <Table.Head>Type</Table.Head>
-          <Table.Head>Details</Table.Head>
-          <Table.Head>Page</Table.Head>
-          <Table.Head>Device</Table.Head>
-          <Table.Head>Country</Table.Head>
+          <Table.Head>{t("errors.time")}</Table.Head>
+          <Table.Head>{t("errors.type")}</Table.Head>
+          <Table.Head>{t("errors.details")}</Table.Head>
+          <Table.Head>{t("errors.page")}</Table.Head>
+          <Table.Head>{t("errors.device")}</Table.Head>
+          <Table.Head>{t("errors.country")}</Table.Head>
         </Table.Row>
       </Table.Header>
       <Table.Body>
@@ -33,7 +34,7 @@
               colspan={6}
               class="text-muted-foreground text-center"
             >
-              No errors in this period
+              {t("errors.empty")}
             </Table.Cell>
           </Table.Row>
         {:else}
@@ -41,7 +42,7 @@
             {@const badge = errorBadge(error.type)}
             <Table.Row>
               <Table.Cell class="whitespace-nowrap"
-                >{new Date(error.receivedAt).toLocaleString()}</Table.Cell
+                >{formatDateTime(error.receivedAt)}</Table.Cell
               >
               <Table.Cell>
                 <Badge variant={badge.variant} class={badge.className}
@@ -62,7 +63,9 @@
                 >{error.device} · {error.os}</Table.Cell
               >
               <Table.Cell class="whitespace-nowrap"
-                >{error.country ? countryLabel(error.country) : "Unknown"}</Table.Cell
+                >{error.country
+                  ? countryLabel(error.country)
+                  : t("format.unknown")}</Table.Cell
               >
             </Table.Row>
           {/each}

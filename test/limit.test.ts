@@ -5,7 +5,7 @@ import { createRateLimiter } from "../src/limit";
 
 describe("createRateLimiter", () => {
   it("allows up to max hits in the window and rejects the rest", () => {
-    let now = 1_000;
+    const now = 1_000;
     const limiter = createRateLimiter({
       max: 2,
       windowMs: 1_000,

@@ -1,34 +1,35 @@
 <script lang="ts">
-  import { Badge } from "$lib/components/ui/badge/index.js";
-  import * as Card from "$lib/components/ui/card/index.js";
-  import * as Table from "$lib/components/ui/table/index.js";
-  import { formatCount } from "$lib/format";
-  import type { ErrorGroup } from "$lib/types";
+  import { Badge } from "$lib/Components/Ui/Badge/index.js";
+  import * as Card from "$lib/Components/Ui/Card/index.js";
+  import * as Table from "$lib/Components/Ui/Table/index.js";
+  import { formatCount, formatDateTime } from "$lib/Shared/Format";
+  import { t } from "$lib/I18n";
+  import type { ErrorGroup } from "$lib/Shared/Types";
 
-  import { errorBadge, groupDetails } from "./helpers";
+  import { errorBadge, groupDetails } from "./Helpers";
 
   let { groups }: { groups: ErrorGroup[] } = $props();
 </script>
 
 <Card.Root>
   <Card.Header>
-    <Card.Title>Error groups</Card.Title>
+    <Card.Title>{t("errors.groupsTitle")}</Card.Title>
   </Card.Header>
   <Card.Content>
     <Table.Root>
       <Table.Header>
         <Table.Row>
-          <Table.Head>Type</Table.Head>
-          <Table.Head>Details</Table.Head>
-          <Table.Head class="w-20 text-end">Count</Table.Head>
-          <Table.Head>Last seen</Table.Head>
+          <Table.Head>{t("errors.type")}</Table.Head>
+          <Table.Head>{t("errors.details")}</Table.Head>
+          <Table.Head class="w-20 text-end">{t("errors.count")}</Table.Head>
+          <Table.Head>{t("errors.lastSeen")}</Table.Head>
         </Table.Row>
       </Table.Header>
       <Table.Body>
         {#if groups.length === 0}
           <Table.Row>
             <Table.Cell colspan={4} class="text-muted-foreground text-center">
-              No errors in this period
+              {t("errors.empty")}
             </Table.Cell>
           </Table.Row>
         {:else}
@@ -53,7 +54,7 @@
                 >{formatCount(group.count)}</Table.Cell
               >
               <Table.Cell class="whitespace-nowrap"
-                >{new Date(group.lastSeen).toLocaleString()}</Table.Cell
+                >{formatDateTime(group.lastSeen)}</Table.Cell
               >
             </Table.Row>
           {/each}

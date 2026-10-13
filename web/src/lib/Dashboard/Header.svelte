@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { Badge } from "$lib/components/ui/badge/index.js";
-  import { BOT_OPTIONS, BY_OPTIONS, RANGE_OPTIONS } from "$lib/constants";
-  import ThemeSwitch from "$lib/ThemeSwitch.svelte";
-  import ToggleGroup from "$lib/ToggleGroup.svelte";
-  import type { BotKey, RangeKey, SessionKey } from "$lib/types";
+  import { Badge } from "$lib/Components/Ui/Badge/index.js";
+  import { t } from "$lib/I18n";
+  import LocaleSwitch from "$lib/I18n/LocaleSwitch.svelte";
+  import ThemeSwitch from "$lib/Theme/ThemeSwitch.svelte";
+  import ToggleGroup from "$lib/Components/ToggleGroup.svelte";
+  import type { BotKey, RangeKey, SessionKey } from "$lib/Shared/Types";
 
-  import { filterChips, type FilterKey } from "./helpers";
+  import { filterChips, type FilterKey } from "./Helpers";
 
   let {
     range = $bindable(),
@@ -30,6 +31,21 @@
   } = $props();
 
   const chips = $derived(filterChips(path, origin, lang, locale, release));
+  const rangeOptions = $derived([
+    { value: "24h" as const, label: t("range.h24") },
+    { value: "7d" as const, label: t("range.d7") },
+    { value: "30d" as const, label: t("range.d30") },
+  ]);
+  const byOptions = $derived([
+    { value: "session" as const, label: t("sessionBy.session") },
+    { value: "ua" as const, label: t("sessionBy.ua") },
+    { value: "ip" as const, label: t("sessionBy.ip") },
+    { value: "ua-ip" as const, label: t("sessionBy.uaIp") },
+  ]);
+  const botOptions = $derived([
+    { value: "no" as const, label: t("bot.no") },
+    { value: "yes" as const, label: t("bot.yes") },
+  ]);
 
   function clear(key: FilterKey) {
     if (key === "path") path = undefined;
@@ -52,35 +68,36 @@
   <div
     class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-6 py-4"
   >
-    <h1 class="text-lg font-semibold tracking-tight">Real User Monitoring</h1>
+    <h1 class="text-lg font-semibold tracking-tight">{t("app.title")}</h1>
     <div class="flex flex-wrap items-center gap-3">
       <ToggleGroup
-        labelledBy="Time range"
-        options={RANGE_OPTIONS}
+        labelledBy={t("header.timeRange")}
+        options={rangeOptions}
         bind:value={range}
       />
       <ToggleGroup
-        label="Sessions by"
+        label={t("sessionBy.label")}
         labelledBy="session-key-label"
-        options={BY_OPTIONS}
+        options={byOptions}
         bind:value={sessionKey}
       />
       <ToggleGroup
-        label="Bot"
+        label={t("bot.label")}
         labelledBy="bot-label"
-        options={BOT_OPTIONS}
+        options={botOptions}
         bind:value={bot}
       />
       <span class="text-muted-foreground text-sm" aria-live="polite"
         >{status}</span
       >
+      <LocaleSwitch />
       <ThemeSwitch />
     </div>
   </div>
   {#if chips.length > 0}
     <div
       class="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-6 pb-3"
-      aria-label="Active filters"
+      aria-label={t("header.activeFilters")}
     >
       {#each chips as chip (chip.key)}
         <Badge variant="secondary" class="gap-1 font-normal">
@@ -88,7 +105,7 @@
           <button
             type="button"
             class="hover:text-foreground ml-1"
-            aria-label="Clear {chip.label} filter"
+            aria-label={t("header.clearFilter", { label: chip.label })}
             onclick={() => clear(chip.key)}
           >
             ×
@@ -100,7 +117,7 @@
         class="text-muted-foreground hover:text-foreground text-xs"
         onclick={clearAll}
       >
-        Clear filters
+        {t("header.clearFilters")}
       </button>
     </div>
   {/if}
