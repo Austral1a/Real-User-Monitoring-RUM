@@ -12,7 +12,9 @@ const MAX_DURATION_MS = 10 * 60 * 1000;
 /** CLS is stored as integer thousandths; 10.000 is the cap. */
 export const MAX_CLS_THOUSANDTHS = 10_000;
 const SESSION_ID = /^[A-Za-z0-9-]{8,64}$/;
-const LANG = /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$/;
+export const LANG = /^[a-z]{2,3}(-[a-z0-9]{2,8})?$/;
+const RELEASE = /^[A-Za-z0-9._-]{1,64}$/;
+const CUSTOM_NAME = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 const METHOD = /^[A-Z]{1,10}$/;
 const MAX_ORIGIN_LENGTH = 200;
 
@@ -22,7 +24,7 @@ export type ParseResult =
 
 type BatchContext = Pick<
   RumEvent,
-  "sessionId" | "device" | "os" | "connection"
+  "sessionId" | "device" | "os" | "connection" | "release"
 >;
 
 class ValidationError extends Error {}
@@ -57,6 +59,7 @@ export function parseBatch(raw: string): ParseResult {
       device: oneOf(body.device, DEVICES, "device"),
       os: oneOf(body.os, OPERATING_SYSTEMS, "os"),
       connection: oneOf(body.connection, CONNECTIONS, "connection"),
+      release: parseRelease(body.release),
     };
 
     return {
@@ -79,10 +82,9 @@ function parseEvent(value: unknown, context: BatchContext): RumEvent {
     ...context,
     type: oneOf(value.type, EVENT_TYPES, "type"),
     path: parsePath(value.path),
-    lang:
-      typeof value.lang === "string" && LANG.test(value.lang)
-        ? value.lang
-        : null,
+    lang: parseLangTag(value.lang),
+    locale: parseLangTag(value.locale),
+    release: context.release,
     pageLoad: null,
     ttfb: null,
     startRender: null,
@@ -124,6 +126,9 @@ function parseEvent(value: unknown, context: BatchContext): RumEvent {
       event.method = parseMethod(value.method);
       break;
     case "crash":
+      break;
+    case "custom":
+      event.message = parseCustomName(value.name ?? value.message);
       break;
   }
 
@@ -201,16 +206,62 @@ export function parseOverviewOrigin(
   }
 }
 
+export function parseLangTag(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const tag = value.trim().toLowerCase();
+  return LANG.test(tag) ? tag : null;
+}
+
+/** First language range from an Accept-Language header. */
+export function parseAcceptLanguage(header: string | undefined): string | null {
+  if (!header) return null;
+  const first = header.split(",")[0]?.split(";")[0];
+  return parseLangTag(first);
+}
+
 export function parseOverviewLang(
+  value: unknown,
+  field = "lang",
+): { ok: true; value?: string } | { ok: false; error: string } {
+  if (value === undefined || value === null || value === "") {
+    return { ok: true };
+  }
+  const tag = parseLangTag(value);
+  if (!tag) return { ok: false, error: `${field} is invalid` };
+  return { ok: true, value: tag };
+}
+
+export function parseOverviewLocale(
+  value: unknown,
+): { ok: true; value?: string } | { ok: false; error: string } {
+  return parseOverviewLang(value, "locale");
+}
+
+export function parseOverviewRelease(
   value: unknown,
 ): { ok: true; value?: string } | { ok: false; error: string } {
   if (value === undefined || value === null || value === "") {
     return { ok: true };
   }
-  if (typeof value !== "string" || !LANG.test(value)) {
-    return { ok: false, error: "lang is invalid" };
+  if (typeof value !== "string" || !RELEASE.test(value)) {
+    return { ok: false, error: "release is invalid" };
   }
   return { ok: true, value };
+}
+
+function parseRelease(value: unknown): string | null {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value !== "string" || !RELEASE.test(value)) {
+    throw new ValidationError("Invalid release");
+  }
+  return value;
+}
+
+function parseCustomName(value: unknown): string {
+  if (typeof value !== "string" || !CUSTOM_NAME.test(value)) {
+    throw new ValidationError("Invalid custom event name");
+  }
+  return value;
 }
 
 /** Dashboard filter. Missing means humans only (`false`). */

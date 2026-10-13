@@ -1,5 +1,5 @@
 import type { BadgeVariant } from "$lib/components/ui/badge/index.js";
-import type { ErrorRow } from "$lib/types";
+import type { ErrorGroup, ErrorRow } from "$lib/types";
 
 export function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
@@ -11,8 +11,10 @@ const ERROR_LABELS: Record<ErrorRow["type"], string> = {
   crash: "Crash",
 };
 
+export type FilterKey = "path" | "origin" | "lang" | "locale" | "release";
+
 export interface FilterChip {
-  key: "path" | "origin" | "lang";
+  key: FilterKey;
   label: string;
   value: string;
 }
@@ -21,11 +23,15 @@ export function filterChips(
   path?: string,
   origin?: string,
   lang?: string,
+  locale?: string,
+  release?: string,
 ): FilterChip[] {
   const chips: FilterChip[] = [];
   if (path) chips.push({ key: "path", label: "URL", value: path });
   if (origin) chips.push({ key: "origin", label: "Site", value: origin });
   if (lang) chips.push({ key: "lang", label: "Language", value: lang });
+  if (locale) chips.push({ key: "locale", label: "Locale", value: locale });
+  if (release) chips.push({ key: "release", label: "Release", value: release });
   return chips;
 }
 
@@ -37,6 +43,12 @@ export function details(error: ErrorRow): string {
     return "Left before the page finished loading";
   }
   return error.message ?? "";
+}
+
+export function groupDetails(group: ErrorGroup): string {
+  if (group.type === "network_error") return group.source ?? "Network error";
+  if (group.type === "crash") return "Left before the page finished loading";
+  return group.message ?? "";
 }
 
 export function errorBadge(type: ErrorRow["type"]): {

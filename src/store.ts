@@ -2,7 +2,7 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import Database from "better-sqlite3";
 
-import type { EventType, StoredEvent } from "./types";
+import { ERROR_TYPES, type ErrorType, type StoredEvent } from "./types";
 
 export interface TimingRow {
   receivedAt: number;
@@ -24,7 +24,7 @@ export interface Totals {
 
 export interface ErrorRow {
   receivedAt: number;
-  type: Exclude<EventType, "timing">;
+  type: ErrorType;
   path: string;
   message: string | null;
   source: string | null;
@@ -45,10 +45,37 @@ export interface PageViewSample {
   pageLoad: number | null;
 }
 
+export interface ErrorGroup {
+  type: ErrorType;
+  message: string | null;
+  source: string | null;
+  count: number;
+  lastSeen: number;
+}
+
+export interface SiteStats {
+  origin: string;
+  sessions: number;
+  pageLoads: number;
+  jsErrors: number;
+}
+
+export interface SiteLcpSample {
+  origin: string;
+  lcp: number;
+}
+
+export interface CustomEventRow {
+  key: string;
+  count: number;
+}
+
 export interface EventFilter {
   path?: string;
   origin?: string;
   lang?: string;
+  locale?: string;
+  release?: string;
   /** `undefined` includes both; `true` is crawlers only, `false` is humans only. */
   bot?: boolean;
 }
@@ -60,6 +87,8 @@ export const PAGEVIEW_COLUMNS = {
   device: "device",
   origin: "origin",
   lang: "lang",
+  locale: "locale",
+  release: "release",
 } as const;
 
 export type PageViewKey = keyof typeof PAGEVIEW_COLUMNS;
@@ -118,6 +147,25 @@ export interface Store {
     to: number,
     filter?: EventFilter,
   ): PageViewSample[];
+  groupedErrors(
+    from: number,
+    to: number,
+    limit: number,
+    filter?: EventFilter,
+  ): ErrorGroup[];
+  siteStats(
+    from: number,
+    to: number,
+    sessionKey: SessionKey,
+    filter?: EventFilter,
+  ): SiteStats[];
+  siteLcps(from: number, to: number, filter?: EventFilter): SiteLcpSample[];
+  customEvents(
+    from: number,
+    to: number,
+    limit: number,
+    filter?: EventFilter,
+  ): CustomEventRow[];
   close(): void;
 }
 
@@ -126,6 +174,8 @@ const RANGE_AND_FILTER = `
   AND (? = '' OR path = ?)
   AND (? = '' OR origin = ?)
   AND (? = '' OR lang = ?)
+  AND (? = '' OR locale = ?)
+  AND (? = '' OR release = ?)
   AND (? = -1 OR bot = ?)
 `;
 
@@ -155,7 +205,9 @@ const SCHEMA = `
     ip_hash TEXT,
     ua_hash TEXT,
     browser TEXT NOT NULL DEFAULT 'Other',
-    bot INTEGER NOT NULL DEFAULT 0
+    bot INTEGER NOT NULL DEFAULT 0,
+    locale TEXT,
+    release TEXT
   );
   CREATE INDEX IF NOT EXISTS events_received_at ON events (received_at);
 `;
@@ -169,11 +221,17 @@ const ADDED_COLUMNS: ReadonlyArray<{ name: string; ddl: string }> = [
   { name: "cls", ddl: "INTEGER" },
   { name: "origin", ddl: "TEXT" },
   { name: "bot", ddl: "INTEGER NOT NULL DEFAULT 0" },
+  { name: "locale", ddl: "TEXT" },
+  { name: "release", ddl: "TEXT" },
 ];
 
 type RangeParams = [
   number,
   number,
+  string,
+  string,
+  string,
+  string,
   string,
   string,
   string,
@@ -192,8 +250,25 @@ export function bindFilter(
   const path = filter.path ?? "";
   const origin = filter.origin ?? "";
   const lang = filter.lang ?? "";
+  const locale = filter.locale ?? "";
+  const release = filter.release ?? "";
   const bot = filter.bot === undefined ? -1 : filter.bot ? 1 : 0;
-  return [from, to, path, path, origin, origin, lang, lang, bot, bot];
+  return [
+    from,
+    to,
+    path,
+    path,
+    origin,
+    origin,
+    lang,
+    lang,
+    locale,
+    locale,
+    release,
+    release,
+    bot,
+    bot,
+  ];
 }
 
 export function openStore(path: string): Store {
@@ -210,11 +285,11 @@ export function openStore(path: string): Store {
 
   const insertEvent = db.prepare(`
     INSERT INTO events (
-      received_at, type, session_id, path, lang, origin, device, os, connection, country,
+      received_at, type, session_id, path, lang, locale, release, origin, device, os, connection, country,
       page_load, ttfb, start_render, lcp, inp, cls, message, source, status, method,
       ip_hash, ua_hash, browser, bot
     ) VALUES (
-      @receivedAt, @type, @sessionId, @path, @lang, @origin, @device, @os, @connection, @country,
+      @receivedAt, @type, @sessionId, @path, @lang, @locale, @release, @origin, @device, @os, @connection, @country,
       @pageLoad, @ttfb, @startRender, @lcp, @inp, @cls, @message, @source, @status, @method,
       @ipHash, @uaHash, @browser, @bot
     )
@@ -255,10 +330,55 @@ export function openStore(path: string): Store {
       received_at AS receivedAt, type, path, message, source, status, method,
       device, os, country
     FROM events
-    WHERE type != 'timing' AND ${RANGE_AND_FILTER}
+    WHERE type IN (${errorTypeList()}) AND ${RANGE_AND_FILTER}
     ORDER BY received_at DESC
     LIMIT ?
   `);
+
+  const selectErrorGroups = db.prepare<
+    [...RangeParams, number],
+    ErrorGroup
+  >(`
+    SELECT type, message, source, COUNT(*) AS count, MAX(received_at) AS lastSeen
+    FROM events
+    WHERE type IN (${errorTypeList()}) AND ${RANGE_AND_FILTER}
+    GROUP BY type, COALESCE(message, ''), COALESCE(source, '')
+    ORDER BY count DESC, lastSeen DESC
+    LIMIT ?
+  `);
+
+  const selectCustomEvents = db.prepare<
+    [...RangeParams, number],
+    CustomEventRow
+  >(`
+    SELECT message AS key, COUNT(*) AS count
+    FROM events
+    WHERE type = 'custom' AND ${RANGE_AND_FILTER}
+    GROUP BY message
+    ORDER BY count DESC, key ASC
+    LIMIT ?
+  `);
+
+  const selectSiteLcps = db.prepare<RangeParams, SiteLcpSample>(`
+    SELECT COALESCE(origin, 'unknown') AS origin, lcp
+    FROM events
+    WHERE type = 'timing' AND lcp IS NOT NULL AND ${RANGE_AND_FILTER}
+  `);
+
+  const selectSiteStats = bySessionKey((session) =>
+    db.prepare<RangeParams, SiteStats>(`
+      SELECT
+        COALESCE(origin, 'unknown') AS origin,
+        COUNT(DISTINCT ${session}) AS sessions,
+        COALESCE(SUM(type = 'timing' AND page_load IS NOT NULL), 0) AS pageLoads,
+        COALESCE(SUM(type = 'js_error'), 0) AS jsErrors
+      FROM events
+      WHERE ${RANGE_AND_FILTER}
+      GROUP BY 1
+      ORDER BY sessions DESC, origin ASC
+      LIMIT 20
+    `),
+  );
 
   const selectBreakdown = bySessionKey(
     (session) =>
@@ -305,8 +425,20 @@ export function openStore(path: string): Store {
       selectBreakdown[sessionKey][key].all(...bindFilter(from, to, filter)),
     pageViews: (key, from, to, filter) =>
       selectPageViews[key].all(...bindFilter(from, to, filter)),
+    groupedErrors: (from, to, limit, filter) =>
+      selectErrorGroups.all(...bindFilter(from, to, filter), limit),
+    siteStats: (from, to, sessionKey, filter) =>
+      selectSiteStats[sessionKey].all(...bindFilter(from, to, filter)),
+    siteLcps: (from, to, filter) =>
+      selectSiteLcps.all(...bindFilter(from, to, filter)),
+    customEvents: (from, to, limit, filter) =>
+      selectCustomEvents.all(...bindFilter(from, to, filter), limit),
     close: () => db.close(),
   };
+}
+
+function errorTypeList(): string {
+  return ERROR_TYPES.map((type) => `'${type}'`).join(", ");
 }
 
 function fallbackLabel(key: PageViewKey): string {

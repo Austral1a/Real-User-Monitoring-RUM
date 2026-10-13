@@ -55,6 +55,7 @@ function testConfig(overrides: Partial<Config> = {}): Config {
     dbPath: ":memory:",
     hashSalt: "test-salt-0123456789",
     production: false,
+    alertWebhook: null,
     ...overrides,
   };
 }
@@ -195,6 +196,8 @@ describe("dashboard", () => {
         sessionId: "session-1",
         path: "/uk",
         lang: "uk",
+        locale: "uk",
+        release: null,
         device: "mobile",
         os: "Android",
         connection: "3g",
@@ -511,6 +514,46 @@ describe("POST /collect country from connecting IP", () => {
   });
 });
 
+describe("POST /collect language", () => {
+  it("fills lang from Accept-Language and stores locale, not the URL", async () => {
+    const store = openStore(":memory:");
+    const started = await startServer(testConfig(), store);
+    const body = JSON.stringify({
+      ...JSON.parse(validBody),
+      events: [
+        {
+          type: "timing",
+          path: "/uk",
+          locale: "en",
+          pageLoad: 1000,
+          ttfb: 50,
+          startRender: 200,
+        },
+      ],
+    });
+    const response = await fetch(`${started.url}/collect`, {
+      method: "POST",
+      headers: {
+        Origin: SITE,
+        "Content-Type": "text/plain;charset=UTF-8",
+        "Accept-Language": "uk-UA,uk;q=0.9,en;q=0.8",
+      },
+      body,
+    });
+    assert.equal(response.status, 204);
+    assert.equal(
+      store.pageViews("lang", NOW - 1000, NOW + 1000)[0]?.key,
+      "uk-ua",
+    );
+    assert.equal(
+      store.pageViews("locale", NOW - 1000, NOW + 1000)[0]?.key,
+      "en",
+    );
+    started.server.close();
+    store.close();
+  });
+});
+
 describe("POST /collect rate limit", () => {
   it("rejects further beacons from the same IP after the cap", async () => {
     const store = openStore(":memory:");
@@ -540,8 +583,93 @@ describe("POST /collect rate limit", () => {
     assert.equal(limited.status, 429);
     assert.deepEqual(await limited.json(), { error: "Too many requests" });
     assert.equal((await collect("session-rate4", "8.8.8.8")).status, 204);
+    const overview = (await fetch(`${started.url}/api/overview`).then((r) =>
+      r.json(),
+    )) as Overview;
+    assert.equal(overview.ingest.rateLimited, 1);
+    assert.ok(overview.ingest.stored >= 4);
     started.server.close();
     store.close();
+  });
+});
+
+describe("GET /api/overview sites and range", () => {
+  it("lists any number of origins and accepts 30d", async () => {
+    const store = openStore(":memory:");
+    const other = "https://variant-factory.eu";
+    store.insert([
+      {
+        receivedAt: NOW - 60_000,
+        type: "timing",
+        sessionId: "session-site-a",
+        path: "/uk",
+        lang: "uk",
+        locale: "uk",
+        release: null,
+        device: "desktop",
+        os: "Windows",
+        connection: "4g",
+        country: "UA",
+        pageLoad: 1500,
+        ttfb: 90,
+        startRender: 600,
+        lcp: 1800,
+        inp: 50,
+        cls: 40,
+        origin: SITE,
+        message: null,
+        source: null,
+        status: null,
+        method: null,
+        ipHash: "a",
+        uaHash: "b",
+        browser: "Chrome",
+        bot: false,
+      },
+      {
+        receivedAt: NOW - 60_000,
+        type: "timing",
+        sessionId: "session-site-b",
+        path: "/en",
+        lang: "en",
+        locale: "en",
+        release: null,
+        device: "desktop",
+        os: "Windows",
+        connection: "4g",
+        country: "GB",
+        pageLoad: 1200,
+        ttfb: 80,
+        startRender: 500,
+        lcp: 1600,
+        inp: 40,
+        cls: 20,
+        origin: other,
+        message: null,
+        source: null,
+        status: null,
+        method: null,
+        ipHash: "c",
+        uaHash: "d",
+        browser: "Firefox",
+        bot: false,
+      },
+    ]);
+    const started = await startServer(testConfig(), store);
+    try {
+      const overview = (await fetch(
+        `${started.url}/api/overview?range=30d`,
+      ).then((r) => r.json())) as Overview;
+      assert.equal(overview.range, "30d");
+      assert.equal(overview.sites.length, 2);
+      assert.deepEqual(
+        overview.sites.map((site) => site.origin).sort(),
+        [other, SITE].sort(),
+      );
+    } finally {
+      started.server.close();
+      store.close();
+    }
   });
 });
 
@@ -600,5 +728,13 @@ describe("loadConfig", () => {
         "https://variant.kharkov.com/ua/, http://localhost:3000",
     });
     assert.deepEqual([...config.siteOrigins], [SITE, "http://localhost:3000"]);
+  });
+
+  it("accepts an optional https alert webhook", () => {
+    const config = loadConfig({
+      MONITOR_ALERT_WEBHOOK: "https://hooks.example/rum",
+    });
+    assert.equal(config.alertWebhook, "https://hooks.example/rum");
+    assert.throws(() => loadConfig({ MONITOR_ALERT_WEBHOOK: "ftp://x" }));
   });
 });

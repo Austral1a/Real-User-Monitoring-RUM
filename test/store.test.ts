@@ -14,6 +14,8 @@ function event(overrides: Partial<StoredEvent>): StoredEvent {
     sessionId: "session-1",
     path: "/uk",
     lang: "uk",
+    locale: "uk",
+    release: null,
     device: "desktop",
     os: "macOS",
     connection: "4g",
@@ -150,5 +152,33 @@ describe("page loads and filters", () => {
       }).length,
       1,
     );
+  });
+
+  it("filters by locale and groups errors", () => {
+    store = openStore(":memory:");
+    store.insert([
+      event({ locale: "uk", type: "js_error", message: "boom", source: "a.js" }),
+      event({
+        locale: "en",
+        type: "js_error",
+        message: "boom",
+        source: "a.js",
+        sessionId: "session-2",
+      }),
+      event({
+        locale: "uk",
+        type: "js_error",
+        message: "boom",
+        source: "a.js",
+        sessionId: "session-3",
+      }),
+    ]);
+    assert.equal(
+      store.totals(WINDOW.from, WINDOW.to, "session", { locale: "uk" }).jsErrors,
+      2,
+    );
+    const groups = store.groupedErrors(WINDOW.from, WINDOW.to, 10);
+    assert.equal(groups.length, 1);
+    assert.equal(groups[0]?.count, 3);
   });
 });

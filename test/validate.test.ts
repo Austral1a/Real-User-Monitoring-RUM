@@ -3,7 +3,9 @@ import { describe, it } from "node:test";
 
 import {
   MAX_EVENTS_PER_BATCH,
+  parseAcceptLanguage,
   parseBatch,
+  parseLangTag,
   parseOverviewBot,
   redactUrls,
   stripQuery,
@@ -59,6 +61,8 @@ describe("parseBatch", () => {
         type: "timing",
         path: "/uk",
         lang: "uk",
+        locale: null,
+        release: null,
         pageLoad: 1235,
         ttfb: 80,
         startRender: 400,
@@ -139,6 +143,35 @@ describe("parseBatch", () => {
     assert.equal(result.events[0].lang, null);
   });
 
+  it("stores browser lang and page locale separately, not from the path", () => {
+    const result = parseBatch(
+      batch([
+        {
+          type: "crash",
+          path: "/uk",
+          lang: "uk-UA",
+          locale: "en",
+        },
+      ]),
+    );
+    assert.ok(result.ok);
+    assert.equal(result.events[0].path, "/uk");
+    assert.equal(result.events[0].lang, "uk-ua");
+    assert.equal(result.events[0].locale, "en");
+  });
+
+  it("accepts a custom event and a batch release", () => {
+    const result = parseBatch(
+      batch([{ type: "custom", path: "/uk", name: "pdf" }], {
+        release: "2026-10-13",
+      }),
+    );
+    assert.ok(result.ok);
+    assert.equal(result.events[0].type, "custom");
+    assert.equal(result.events[0].message, "pdf");
+    assert.equal(result.events[0].release, "2026-10-13");
+  });
+
   const rejected: [string, string][] = [
     ["invalid JSON", "{nope"],
     ["a non-object body", "[]"],
@@ -162,6 +195,10 @@ describe("parseBatch", () => {
       ),
     ],
     ["an unknown event type", batch([{ type: "click", path: "/" }])],
+    [
+      "an invalid custom event name",
+      batch([{ type: "custom", path: "/", name: "Not Valid" }]),
+    ],
     [
       "a path without a leading slash",
       batch([{ type: "crash", path: "https://a.com/" }]),
@@ -219,6 +256,16 @@ describe("parseBatch", () => {
     );
     assert.ok(result.ok);
     assert.equal(result.events[0].message?.length, 300);
+  });
+});
+
+describe("parseLangTag", () => {
+  it("normalises BCP-47 tags and rejects junk", () => {
+    assert.equal(parseLangTag("uk-UA"), "uk-ua");
+    assert.equal(parseLangTag("en"), "en");
+    assert.equal(parseLangTag("<script>"), null);
+    assert.equal(parseAcceptLanguage("uk-UA,uk;q=0.9,en;q=0.8"), "uk-ua");
+    assert.equal(parseAcceptLanguage(undefined), null);
   });
 });
 

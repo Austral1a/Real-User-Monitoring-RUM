@@ -16,6 +16,8 @@ export interface Config {
   /** Key for hashing client IPs and user-agents. Changing it splits existing visitors from new ones. */
   hashSalt: string;
   production: boolean;
+  /** Optional POST URL for LCP / JS-error threshold alerts. */
+  alertWebhook: string | null;
 }
 
 const DEV_SITE_ORIGIN = "http://localhost:3000";
@@ -37,6 +39,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     dbPath: parseDbPath(env.MONITOR_DB_PATH),
     hashSalt: parseHashSalt(env.MONITOR_HASH_SALT, production),
     production,
+    alertWebhook: parseWebhook(env.MONITOR_ALERT_WEBHOOK),
   };
 }
 
@@ -116,6 +119,23 @@ function parseTrustProxy(value: string | undefined): boolean | number | string {
   if (trimmed === "true") return true;
   if (/^\d+$/.test(trimmed)) return Number(trimmed);
   return trimmed;
+}
+
+function parseWebhook(value: string | undefined): string | null {
+  const url = value?.trim();
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      throw new Error("MONITOR_ALERT_WEBHOOK must be an http(s) URL");
+    }
+    return parsed.href;
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("MONITOR_")) {
+      throw error;
+    }
+    throw new Error("MONITOR_ALERT_WEBHOOK must be an http(s) URL");
+  }
 }
 
 function parseDbPath(value: string | undefined): string {

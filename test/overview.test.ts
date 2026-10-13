@@ -4,8 +4,10 @@ import { describe, it } from "node:test";
 import {
   percentile,
   rankPageViews,
+  rankSites,
   summarizeTimings,
   timingSeries,
+  vitalScore,
 } from "../src/overview";
 import type { TimingRow } from "../src/store";
 
@@ -123,5 +125,45 @@ describe("timingSeries", () => {
         { start: 13 * HOUR, samples: 0, pageLoad: null },
       ],
     );
+  });
+});
+
+describe("vitalScore", () => {
+  it("buckets samples with Google LCP thresholds", () => {
+    assert.deepEqual(vitalScore([2000, 3000, 5000], 2500, 4000), {
+      good: 1,
+      ni: 1,
+      poor: 1,
+      n: 3,
+    });
+  });
+});
+
+describe("rankSites", () => {
+  it("attaches p75 LCP per origin", () => {
+    const sites = rankSites(
+      [
+        {
+          origin: "https://a.test",
+          sessions: 2,
+          pageLoads: 2,
+          jsErrors: 1,
+        },
+        {
+          origin: "https://b.test",
+          sessions: 1,
+          pageLoads: 1,
+          jsErrors: 0,
+        },
+      ],
+      [
+        { origin: "https://a.test", lcp: 1000 },
+        { origin: "https://a.test", lcp: 4000 },
+        { origin: "https://b.test", lcp: 2000 },
+      ],
+    );
+    assert.equal(sites[0]?.origin, "https://a.test");
+    assert.equal(sites[0]?.lcp, 4000);
+    assert.equal(sites[1]?.lcp, 2000);
   });
 });

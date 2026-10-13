@@ -49,16 +49,46 @@ export function formatCompact(value: number): string {
 
 export function formatBucket(start: number, range: RangeKey): string {
   const date = new Date(start);
-  return range === "24h"
-    ? date.toLocaleTimeString(undefined, {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : date.toLocaleString(undefined, {
-        weekday: "short",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+  if (range === "24h") {
+    return date.toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+  if (range === "7d") {
+    return date.toLocaleString(undefined, {
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+export function formatDelta(
+  current: number | null | undefined,
+  previous: number | null | undefined,
+): string | null {
+  if (
+    current === null ||
+    current === undefined ||
+    previous === null ||
+    previous === undefined ||
+    previous === 0
+  ) {
+    return null;
+  }
+  const rounded = Math.round(((current - previous) / previous) * 100);
+  if (rounded === 0) return "0% vs prev";
+  return `${rounded > 0 ? "+" : ""}${rounded}% vs prev`;
+}
+
+export function formatVitalGood(score: { good: number; n: number }): string {
+  if (score.n === 0) return "No samples";
+  return `${Math.round((100 * score.good) / score.n)}% good`;
 }
 
 export function countryLabel(code: string): string {

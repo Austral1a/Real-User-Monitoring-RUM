@@ -1,4 +1,4 @@
-export type RangeKey = "24h" | "7d";
+export type RangeKey = "24h" | "7d" | "30d";
 export type SessionKey = "session" | "ua" | "ip" | "ua-ip";
 export type BotKey = "yes" | "no";
 
@@ -54,19 +54,69 @@ export interface ErrorRow {
   country: string | null;
 }
 
+export interface ErrorGroup {
+  type: ErrorRow["type"];
+  message: string | null;
+  source: string | null;
+  count: number;
+  lastSeen: number;
+}
+
+export interface VitalScore {
+  good: number;
+  ni: number;
+  poor: number;
+  n: number;
+}
+
+export interface SiteRow {
+  origin: string;
+  sessions: number;
+  pageLoads: number;
+  jsErrors: number;
+  lcp: number | null;
+}
+
+export interface CustomEventRow {
+  key: string;
+  count: number;
+}
+
+export interface IngestStats {
+  stored: number;
+  originRejected: number;
+  rateLimited: number;
+  invalid: number;
+  lastBeaconAt: number | null;
+}
+
 export interface Overview {
   range: RangeKey;
   sessionKey: SessionKey;
   path: string | null;
   origin: string | null;
   lang: string | null;
+  locale: string | null;
+  release: string | null;
   bot: boolean;
   from: number;
   to: number;
   totals: Totals;
   percentiles: Percentiles;
+  previous: {
+    totals: Totals;
+    percentiles: Percentiles;
+  };
+  vitals: {
+    lcp: VitalScore;
+    inp: VitalScore;
+    cls: VitalScore;
+  };
   series: SeriesPoint[];
   recentErrors: ErrorRow[];
+  errorGroups: ErrorGroup[];
+  sites: SiteRow[];
+  customEvents: CustomEventRow[];
   breakdowns: {
     device: BreakdownRow[];
     os: BreakdownRow[];
@@ -80,5 +130,8 @@ export interface Overview {
     device: PageViewRow[];
     origin: PageViewRow[];
     lang: PageViewRow[];
+    locale: PageViewRow[];
+    release: PageViewRow[];
   };
+  ingest: IngestStats;
 }

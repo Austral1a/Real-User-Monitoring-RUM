@@ -5,7 +5,7 @@
   import ToggleGroup from "$lib/ToggleGroup.svelte";
   import type { BotKey, RangeKey, SessionKey } from "$lib/types";
 
-  import { filterChips } from "./helpers";
+  import { filterChips, type FilterKey } from "./helpers";
 
   let {
     range = $bindable(),
@@ -14,6 +14,8 @@
     path = $bindable(),
     origin = $bindable(),
     lang = $bindable(),
+    locale = $bindable(),
+    release = $bindable(),
     status,
   }: {
     range: RangeKey;
@@ -22,21 +24,27 @@
     path?: string;
     origin?: string;
     lang?: string;
+    locale?: string;
+    release?: string;
     status: string;
   } = $props();
 
-  const chips = $derived(filterChips(path, origin, lang));
+  const chips = $derived(filterChips(path, origin, lang, locale, release));
 
-  function clear(key: "path" | "origin" | "lang") {
+  function clear(key: FilterKey) {
     if (key === "path") path = undefined;
     else if (key === "origin") origin = undefined;
-    else lang = undefined;
+    else if (key === "lang") lang = undefined;
+    else if (key === "locale") locale = undefined;
+    else release = undefined;
   }
 
   function clearAll() {
     path = undefined;
     origin = undefined;
     lang = undefined;
+    locale = undefined;
+    release = undefined;
   }
 </script>
 

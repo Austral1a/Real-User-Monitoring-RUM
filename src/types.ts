@@ -3,7 +3,9 @@ export const EVENT_TYPES = [
   "js_error",
   "network_error",
   "crash",
+  "custom",
 ] as const;
+export const ERROR_TYPES = ["js_error", "network_error", "crash"] as const;
 export const DEVICES = ["mobile", "tablet", "desktop"] as const;
 export const OPERATING_SYSTEMS = [
   "Windows",
@@ -17,6 +19,7 @@ export const OPERATING_SYSTEMS = [
 export const CONNECTIONS = ["slow-2g", "2g", "3g", "4g", "unknown"] as const;
 
 export type EventType = (typeof EVENT_TYPES)[number];
+export type ErrorType = (typeof ERROR_TYPES)[number];
 export type Device = (typeof DEVICES)[number];
 export type OperatingSystem = (typeof OPERATING_SYSTEMS)[number];
 export type Connection = (typeof CONNECTIONS)[number];
@@ -25,7 +28,12 @@ export interface RumEvent {
   type: EventType;
   sessionId: string;
   path: string;
+  /** Browser language preference (`navigator.language`), not the URL. */
   lang: string | null;
+  /** Page language from `<html lang>`, not the URL. */
+  locale: string | null;
+  /** Deploy id from the snippet `data-release` or `?v=`. */
+  release: string | null;
   device: Device;
   os: OperatingSystem;
   connection: Connection;

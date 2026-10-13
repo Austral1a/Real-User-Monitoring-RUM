@@ -14,6 +14,7 @@ export const SESSION_TITLES: Record<SessionKey, string> = {
 export const RANGE_OPTIONS: { value: RangeKey; label: string }[] = [
   { value: "24h", label: "Last 24 hours" },
   { value: "7d", label: "Last 7 days" },
+  { value: "30d", label: "Last 30 days" },
 ];
 
 export const BY_OPTIONS: { value: SessionKey; label: string }[] = [

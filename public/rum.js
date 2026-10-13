@@ -8,6 +8,15 @@
     document.currentScript || document.querySelector('script[src*="/rum.js"]');
   if (!script || !script.src) return;
 
+  const scriptUrl = new URL(script.src);
+  const sample = parseSample(
+    script.getAttribute("data-sample") || scriptUrl.searchParams.get("sample"),
+  );
+  if (Math.random() >= sample) {
+    window.rum = { track: function () {} };
+    return;
+  }
+
   const endpoint = new URL("/collect", script.src).href;
   const MAX_EVENTS_PER_BATCH = 20;
   // The server rejects bodies over 8 KB.
@@ -28,6 +37,9 @@
     os: getOs(),
     connection: getConnection(),
     webdriver: Boolean(navigator.webdriver),
+    release: parseRelease(
+      script.getAttribute("data-release") || scriptUrl.searchParams.get("v"),
+    ),
   };
 
   let queue = [];
@@ -97,6 +109,37 @@
     return CONNECTIONS.includes(type) ? type : "unknown";
   }
 
+  function parseSample(value) {
+    if (value == null || value === "") return 1;
+    const n = Number(value);
+    if (!Number.isFinite(n) || n < 0 || n > 1) return 1;
+    return n;
+  }
+
+  function parseRelease(value) {
+    if (!value || !/^[A-Za-z0-9._-]{1,64}$/.test(value)) return undefined;
+    return value;
+  }
+
+  function bcp47(value) {
+    const tag = String(value || "")
+      .trim()
+      .toLowerCase();
+    return /^[a-z]{2,3}(-[a-z0-9]{2,8})?$/.test(tag) ? tag : null;
+  }
+
+  function visitorLang() {
+    return (
+      bcp47(navigator.language) ||
+      bcp47(navigator.languages && navigator.languages[0]) ||
+      null
+    );
+  }
+
+  function pageLocale() {
+    return bcp47(document.documentElement.lang);
+  }
+
   function truncate(value) {
     const text = String(value || "").trim();
     return text.length > MAX_TEXT_LENGTH
@@ -117,7 +160,8 @@
       Object.assign(
         {
           path: event.path || viewPath,
-          lang: document.documentElement.lang || null,
+          lang: visitorLang(),
+          locale: pageLocale(),
         },
         event,
       ),
@@ -503,6 +547,13 @@
       return sendXhr.apply(this, arguments);
     };
   }
+
+  window.rum = {
+    track: function (name) {
+      if (typeof name !== "string") return;
+      push({ type: "custom", name: name });
+    },
+  };
 
   // Crashed sessions and delivery on exit
 

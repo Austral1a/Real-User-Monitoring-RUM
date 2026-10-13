@@ -9,20 +9,26 @@
     path = $bindable(),
     origin = $bindable(),
     lang = $bindable(),
+    locale = $bindable(),
+    release = $bindable(),
   }: {
     data: Overview;
     path?: string;
     origin?: string;
     lang?: string;
+    locale?: string;
+    release?: string;
   } = $props();
 
   function toggle(
-    key: "path" | "origin" | "lang",
+    key: "path" | "origin" | "lang" | "locale" | "release",
     value: string,
   ) {
     if (key === "path") path = path === value ? undefined : value;
     else if (key === "origin") origin = origin === value ? undefined : value;
-    else lang = lang === value ? undefined : value;
+    else if (key === "lang") lang = lang === value ? undefined : value;
+    else if (key === "locale") locale = locale === value ? undefined : value;
+    else release = release === value ? undefined : value;
   }
 </script>
 
@@ -57,6 +63,20 @@
         rows={data.pageViews.lang}
         selected={lang}
         onSelect={(value) => toggle("lang", value)}
+      />
+      <RankedTable
+        title="Top page locales"
+        keyHeader="Locale"
+        rows={data.pageViews.locale}
+        selected={locale}
+        onSelect={(value) => toggle("locale", value)}
+      />
+      <RankedTable
+        title="Top releases"
+        keyHeader="Release"
+        rows={data.pageViews.release}
+        selected={release}
+        onSelect={(value) => toggle("release", value)}
       />
       <RankedTable
         title="Top countries"

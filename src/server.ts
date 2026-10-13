@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import { join } from "node:path";
 import type { RequestHandler } from "express";
 
+import { startAlerts } from "./alerts";
 import { createApp } from "./app";
 import { loadConfig, type Config } from "./config";
 import { DIST_DIR, ROOT_DIR } from "./paths";
@@ -24,6 +25,7 @@ try {
 
 const store = openStore(config.dbPath);
 const httpServer = createServer();
+let stopAlerts: (() => void) | undefined;
 
 function pruneOldEvents() {
   const removed = store.prune(Date.now() - RETENTION_MS);
@@ -64,10 +66,14 @@ async function start() {
         "[monitor] Dashboard auth is not configured; the dashboard is open.",
       );
     }
+    if (config.alertWebhook) {
+      stopAlerts = startAlerts({ store, webhook: config.alertWebhook });
+    }
   });
 }
 
 function shutdown() {
+  stopAlerts?.();
   httpServer.close(() => {
     store.close();
     process.exit(0);

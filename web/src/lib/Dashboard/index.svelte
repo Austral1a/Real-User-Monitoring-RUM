@@ -10,11 +10,16 @@
   import type { BotKey, Overview, RangeKey, SessionKey } from "$lib/types";
 
   import ContextCharts from "./ContextCharts.svelte";
+  import CustomEvents from "./CustomEvents.svelte";
+  import ErrorGroups from "./ErrorGroups.svelte";
   import ErrorTable from "./ErrorTable.svelte";
   import Header from "./Header.svelte";
   import { isAbortError } from "./helpers";
   import PageViews from "./PageViews.svelte";
+  import Sites from "./Sites.svelte";
   import SummaryCards from "./SummaryCards.svelte";
+
+  const STALE_MS = 2 * 60 * 60 * 1000;
 
   const initial = readSearch();
   let range = $state<RangeKey>(initial.range);
@@ -23,12 +28,37 @@
   let path = $state<string | undefined>(initial.path);
   let origin = $state<string | undefined>(initial.origin);
   let lang = $state<string | undefined>(initial.lang);
+  let locale = $state<string | undefined>(initial.locale);
+  let release = $state<string | undefined>(initial.release);
   let data = $state<Overview | null>(null);
   let status = $state("");
   let loadError = $state("");
   let timer = 0;
   let generation = 0;
   let abort: AbortController | undefined;
+
+  const ingestHint = $derived.by(() => {
+    if (!data) return "";
+    const { ingest } = data;
+    const rejects = ingest.originRejected + ingest.rateLimited + ingest.invalid;
+    const stale =
+      ingest.lastBeaconAt === null || Date.now() - ingest.lastBeaconAt > STALE_MS;
+    if (!stale && rejects === 0) return "";
+    const parts = [];
+    if (stale) {
+      parts.push(
+        ingest.lastBeaconAt
+          ? `Last beacon ${new Date(ingest.lastBeaconAt).toLocaleString()}`
+          : "No beacons since this process started",
+      );
+    }
+    if (rejects > 0) {
+      parts.push(
+        `${ingest.originRejected} origin rejected · ${ingest.rateLimited} rate limited · ${ingest.invalid} invalid`,
+      );
+    }
+    return parts.join(". ");
+  });
 
   async function load() {
     abort?.abort();
@@ -41,7 +71,7 @@
       const next = await fetchOverview(
         range,
         sessionKey,
-        { path, origin, lang, bot },
+        { path, origin, lang, locale, release, bot },
         signal,
       );
       if (id !== generation) return;
@@ -65,7 +95,9 @@
     void path;
     void origin;
     void lang;
-    writeSearch({ range, sessionKey, bot, path, origin, lang });
+    void locale;
+    void release;
+    writeSearch({ range, sessionKey, bot, path, origin, lang, locale, release });
     void load();
   });
 
@@ -83,6 +115,8 @@
   bind:path
   bind:origin
   bind:lang
+  bind:locale
+  bind:release
   {status}
 />
 
@@ -92,6 +126,13 @@
       <CircleAlertIcon />
       <Alert.Title>Could not load metrics</Alert.Title>
       <Alert.Description>{loadError}</Alert.Description>
+    </Alert.Root>
+  {/if}
+  {#if ingestHint}
+    <Alert.Root>
+      <InfoIcon />
+      <Alert.Title>Collect health</Alert.Title>
+      <Alert.Description>{ingestHint}</Alert.Description>
     </Alert.Root>
   {/if}
   {#if data && data.totals.sessions === 0}
@@ -106,8 +147,15 @@
 
   {#if data}
     <SummaryCards {data} />
-    <PageViews {data} bind:path bind:origin bind:lang />
+    <Sites
+      sites={data.sites}
+      selected={origin}
+      onSelect={(value) => (origin = origin === value ? undefined : value)}
+    />
+    <PageViews {data} bind:path bind:origin bind:lang bind:locale bind:release />
     <ContextCharts {data} />
+    <CustomEvents events={data.customEvents} />
+    <ErrorGroups groups={data.errorGroups} />
     <ErrorTable errors={data.recentErrors} />
   {/if}
 </main>
