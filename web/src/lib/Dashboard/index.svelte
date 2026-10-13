@@ -7,7 +7,7 @@
   import * as Alert from "$lib/components/ui/alert/index.js";
   import { REFRESH_MS } from "$lib/constants";
   import { readSearch, writeSearch } from "$lib/search";
-  import type { Overview, RangeKey, SessionKey } from "$lib/types";
+  import type { BotKey, Overview, RangeKey, SessionKey } from "$lib/types";
 
   import ContextCharts from "./ContextCharts.svelte";
   import ErrorTable from "./ErrorTable.svelte";
@@ -18,6 +18,7 @@
   const initial = readSearch();
   let range = $state<RangeKey>(initial.range);
   let sessionKey = $state<SessionKey>(initial.sessionKey);
+  let bot = $state<BotKey>(initial.bot);
   let path = $state<string | undefined>(initial.path);
   let origin = $state<string | undefined>(initial.origin);
   let lang = $state<string | undefined>(initial.lang);
@@ -30,7 +31,7 @@
     clearTimeout(timer);
     status = "Loading…";
     try {
-      data = await fetchOverview(range, sessionKey, { path, origin, lang });
+      data = await fetchOverview(range, sessionKey, { path, origin, lang, bot });
       loadError = "";
       status = `Updated ${new Date().toLocaleTimeString()}`;
     } catch (error) {
@@ -44,10 +45,11 @@
   $effect(() => {
     void range;
     void sessionKey;
+    void bot;
     void path;
     void origin;
     void lang;
-    writeSearch({ range, sessionKey, path, origin, lang });
+    writeSearch({ range, sessionKey, bot, path, origin, lang });
     void load();
   });
 
@@ -57,6 +59,7 @@
 <Header
   bind:range
   bind:sessionKey
+  bind:bot
   bind:path
   bind:origin
   bind:lang

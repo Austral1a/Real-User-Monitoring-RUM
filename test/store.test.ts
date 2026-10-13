@@ -32,6 +32,7 @@ function event(overrides: Partial<StoredEvent>): StoredEvent {
     ipHash: "ip-a",
     uaHash: "ua-a",
     browser: "Chrome",
+    bot: false,
     ...overrides,
   };
 }
@@ -106,6 +107,23 @@ describe("page loads and filters", () => {
     const totals = store.totals(WINDOW.from, WINDOW.to, "session");
     assert.equal(totals.pageLoads, 1);
     assert.equal(store.timings(WINDOW.from, WINDOW.to).length, 2);
+  });
+
+  it("filters reads by bot", () => {
+    store = openStore(":memory:");
+    store.insert([
+      event({ sessionId: "human", bot: false }),
+      event({ sessionId: "crawler", bot: true, path: "/en" }),
+    ]);
+    assert.equal(
+      store.totals(WINDOW.from, WINDOW.to, "session", { bot: false }).sessions,
+      1,
+    );
+    assert.equal(
+      store.totals(WINDOW.from, WINDOW.to, "session", { bot: true }).sessions,
+      1,
+    );
+    assert.equal(store.totals(WINDOW.from, WINDOW.to, "session").sessions, 2);
   });
 
   it("filters reads by path, origin, and lang", () => {

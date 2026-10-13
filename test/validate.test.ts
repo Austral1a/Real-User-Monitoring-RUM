@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   MAX_EVENTS_PER_BATCH,
   parseBatch,
+  parseOverviewBot,
   redactUrls,
   stripQuery,
 } from "../src/validate";
@@ -49,6 +50,7 @@ describe("parseBatch", () => {
     );
 
     assert.ok(result.ok);
+    assert.equal(result.webdriver, false);
     assert.equal(result.events.length, 4);
     assert.deepEqual(
       { ...result.events[0] },
@@ -203,12 +205,29 @@ describe("parseBatch", () => {
     });
   }
 
+  it("reads webdriver from the batch context", () => {
+    const result = parseBatch(
+      batch([{ type: "crash", path: "/uk" }], { webdriver: true }),
+    );
+    assert.ok(result.ok);
+    assert.equal(result.webdriver, true);
+  });
+
   it("truncates long text fields", () => {
     const result = parseBatch(
       batch([{ type: "js_error", path: "/", message: "x".repeat(1000) }]),
     );
     assert.ok(result.ok);
     assert.equal(result.events[0].message?.length, 300);
+  });
+});
+
+describe("parseOverviewBot", () => {
+  it("defaults to humans and accepts yes or no", () => {
+    assert.deepEqual(parseOverviewBot(undefined), { ok: true, value: false });
+    assert.deepEqual(parseOverviewBot("no"), { ok: true, value: false });
+    assert.deepEqual(parseOverviewBot("yes"), { ok: true, value: true });
+    assert.equal(parseOverviewBot("maybe").ok, false);
   });
 });
 

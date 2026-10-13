@@ -49,6 +49,8 @@ export interface EventFilter {
   path?: string;
   origin?: string;
   lang?: string;
+  /** `undefined` includes both; `true` is crawlers only, `false` is humans only. */
+  bot?: boolean;
 }
 
 export const PAGEVIEW_COLUMNS = {
@@ -124,6 +126,7 @@ const RANGE_AND_FILTER = `
   AND (? = '' OR path = ?)
   AND (? = '' OR origin = ?)
   AND (? = '' OR lang = ?)
+  AND (? = -1 OR bot = ?)
 `;
 
 const SCHEMA = `
@@ -151,7 +154,8 @@ const SCHEMA = `
     method TEXT,
     ip_hash TEXT,
     ua_hash TEXT,
-    browser TEXT NOT NULL DEFAULT 'Other'
+    browser TEXT NOT NULL DEFAULT 'Other',
+    bot INTEGER NOT NULL DEFAULT 0
   );
   CREATE INDEX IF NOT EXISTS events_received_at ON events (received_at);
 `;
@@ -164,6 +168,7 @@ const ADDED_COLUMNS: ReadonlyArray<{ name: string; ddl: string }> = [
   { name: "inp", ddl: "INTEGER" },
   { name: "cls", ddl: "INTEGER" },
   { name: "origin", ddl: "TEXT" },
+  { name: "bot", ddl: "INTEGER NOT NULL DEFAULT 0" },
 ];
 
 type RangeParams = [
@@ -175,6 +180,8 @@ type RangeParams = [
   string,
   string,
   string,
+  number,
+  number,
 ];
 
 export function bindFilter(
@@ -185,7 +192,8 @@ export function bindFilter(
   const path = filter.path ?? "";
   const origin = filter.origin ?? "";
   const lang = filter.lang ?? "";
-  return [from, to, path, path, origin, origin, lang, lang];
+  const bot = filter.bot === undefined ? -1 : filter.bot ? 1 : 0;
+  return [from, to, path, path, origin, origin, lang, lang, bot, bot];
 }
 
 export function openStore(path: string): Store {
@@ -200,15 +208,17 @@ export function openStore(path: string): Store {
     INSERT INTO events (
       received_at, type, session_id, path, lang, origin, device, os, connection, country,
       page_load, ttfb, start_render, lcp, inp, cls, message, source, status, method,
-      ip_hash, ua_hash, browser
+      ip_hash, ua_hash, browser, bot
     ) VALUES (
       @receivedAt, @type, @sessionId, @path, @lang, @origin, @device, @os, @connection, @country,
       @pageLoad, @ttfb, @startRender, @lcp, @inp, @cls, @message, @source, @status, @method,
-      @ipHash, @uaHash, @browser
+      @ipHash, @uaHash, @browser, @bot
     )
   `);
   const insertMany = db.transaction((events: StoredEvent[]) => {
-    for (const event of events) insertEvent.run(event);
+    for (const event of events) {
+      insertEvent.run({ ...event, bot: event.bot ? 1 : 0 });
+    }
   });
 
   const pruneEvents = db.prepare("DELETE FROM events WHERE received_at < ?");

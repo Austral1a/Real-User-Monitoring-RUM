@@ -17,7 +17,8 @@ const METHOD = /^[A-Z]{1,10}$/;
 const MAX_ORIGIN_LENGTH = 200;
 
 export type ParseResult =
-  { ok: true; events: RumEvent[] } | { ok: false; error: string };
+  | { ok: true; events: RumEvent[]; webdriver: boolean }
+  | { ok: false; error: string };
 
 type BatchContext = Pick<
   RumEvent,
@@ -61,6 +62,7 @@ export function parseBatch(raw: string): ParseResult {
     return {
       ok: true,
       events: events.map((event) => parseEvent(event, context)),
+      webdriver: body.webdriver === true,
     };
   } catch (error) {
     if (error instanceof ValidationError) {
@@ -209,6 +211,17 @@ export function parseOverviewLang(
     return { ok: false, error: "lang is invalid" };
   }
   return { ok: true, value };
+}
+
+/** Dashboard filter. Missing means humans only (`false`). */
+export function parseOverviewBot(
+  value: unknown,
+): { ok: true; value: boolean } | { ok: false; error: string } {
+  if (value === undefined || value === null || value === "" || value === "no") {
+    return { ok: true, value: false };
+  }
+  if (value === "yes") return { ok: true, value: true };
+  return { ok: false, error: "bot must be yes or no" };
 }
 
 function parseDuration(value: unknown, field: string): number | null {

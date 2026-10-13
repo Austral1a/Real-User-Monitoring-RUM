@@ -128,6 +128,30 @@ describe("POST /collect", () => {
     assert.equal(store.totals(from, to, "ua-ip").sessions, before + 1);
   });
 
+  it("marks Googlebot and webdriver beacons as bots", async () => {
+    const from = NOW - 1000;
+    const to = NOW + 1000;
+    const google = await collect(validBody, {
+      Origin: SITE,
+      "User-Agent":
+        "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+    });
+    assert.equal(google.status, 204);
+    const webdriverBody = JSON.stringify({
+      ...JSON.parse(validBody),
+      sessionId: "session-bot1",
+      webdriver: true,
+    });
+    const driven = await collect(webdriverBody, {
+      Origin: SITE,
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+    });
+    assert.equal(driven.status, 204);
+
+    assert.equal(store.totals(from, to, "session", { bot: true }).sessions, 2);
+  });
+
   it("rejects requests from other origins", async () => {
     assert.equal(
       (await collect(validBody, { Origin: "https://evil.test" })).status,
@@ -181,6 +205,7 @@ describe("dashboard", () => {
         ipHash: "aaaaaaaaaaaaaaaa",
         uaHash: "bbbbbbbbbbbbbbbb",
         browser: "Chrome Mobile",
+        bot: false,
       },
     ]);
     const started = await startServer(
@@ -299,6 +324,23 @@ describe("dashboard", () => {
     assert.equal(overview.totals.sessions, 1);
   });
 
+  it("filters the overview by bot", async () => {
+    const humans = await fetch(`${url}/api/overview?bot=no`, {
+      headers: { Authorization: auth },
+    });
+    assert.equal(humans.status, 200);
+    const humanOverview = (await humans.json()) as Overview;
+    assert.equal(humanOverview.bot, false);
+    assert.equal(humanOverview.totals.pageLoads, 1);
+
+    const bots = await fetch(`${url}/api/overview?bot=yes`, {
+      headers: { Authorization: auth },
+    });
+    const botOverview = (await bots.json()) as Overview;
+    assert.equal(botOverview.bot, true);
+    assert.equal(botOverview.totals.pageLoads, 0);
+  });
+
   it("filters the overview by path, origin, and lang", async () => {
     const response = await fetch(
       `${url}/api/overview?path=${encodeURIComponent("/uk")}&origin=${encodeURIComponent(SITE)}&lang=uk`,
@@ -331,6 +373,10 @@ describe("dashboard", () => {
       headers: { Authorization: auth },
     });
     assert.equal(badLang.status, 400);
+    const badBot = await fetch(`${url}/api/overview?bot=maybe`, {
+      headers: { Authorization: auth },
+    });
+    assert.equal(badBot.status, 400);
   });
 
   it("rejects unknown session keys", async () => {

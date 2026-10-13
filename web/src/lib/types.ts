@@ -1,5 +1,6 @@
 export type RangeKey = "24h" | "7d";
 export type SessionKey = "session" | "ua" | "ip" | "ua-ip";
+export type BotKey = "yes" | "no";
 
 export interface TimingSummary {
   pageLoad: number | null;
@@ -59,6 +60,7 @@ export interface Overview {
   path: string | null;
   origin: string | null;
   lang: string | null;
+  bot: boolean;
   from: number;
   to: number;
   totals: Totals;

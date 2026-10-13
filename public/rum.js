@@ -27,6 +27,7 @@
     device: getDevice(),
     os: getOs(),
     connection: getConnection(),
+    webdriver: Boolean(navigator.webdriver),
   };
 
   let queue = [];

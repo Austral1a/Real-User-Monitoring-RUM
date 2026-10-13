@@ -2,6 +2,7 @@
   import type { ChartConfiguration } from "chart.js";
   import { Chart } from "chart.js/auto";
 
+  import { cssColor, theme } from "$lib/theme.svelte";
   import { cn } from "$lib/utils.js";
 
   let {
@@ -19,7 +20,10 @@
   $effect(() => {
     const next = config;
     const el = canvas;
+    void theme.mode;
     if (!el) return;
+    Chart.defaults.color = cssColor("--muted-foreground");
+    Chart.defaults.borderColor = cssColor("--border");
     const chart = new Chart(el, next);
     return () => chart.destroy();
   });

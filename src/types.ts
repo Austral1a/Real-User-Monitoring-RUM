@@ -54,4 +54,6 @@ export interface StoredEvent extends RumEvent {
   uaHash: string | null;
   /** Browser family parsed from the User-Agent. The raw UA is not stored. */
   browser: string;
+  /** True when the User-Agent looks like a crawler or `navigator.webdriver` was set. */
+  bot: boolean;
 }

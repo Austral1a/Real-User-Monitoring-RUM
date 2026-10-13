@@ -55,6 +55,7 @@ export interface Overview {
   path: string | null;
   origin: string | null;
   lang: string | null;
+  bot: boolean;
   from: number;
   to: number;
   totals: Totals;
@@ -168,6 +169,7 @@ export function buildOverview(
     path: filter.path ?? null,
     origin: filter.origin ?? null,
     lang: filter.lang ?? null,
+    bot: filter.bot === true,
     from,
     to,
     totals: store.totals(from, to, sessionKey, filter),

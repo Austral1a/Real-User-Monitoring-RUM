@@ -8,7 +8,7 @@ import express, {
 } from "express";
 
 import { basicAuth } from "./auth";
-import { parseBrowser } from "./browser";
+import { isBot, parseBrowser } from "./browser";
 import type { Config } from "./config";
 import { countryFor, requestIp } from "./geo";
 import { createClientHasher } from "./identity";
@@ -17,6 +17,7 @@ import { DIST_DIR, RUM_SCRIPT } from "./paths";
 import type { EventFilter, Store } from "./store";
 import {
   parseBatch,
+  parseOverviewBot,
   parseOverviewLang,
   parseOverviewOrigin,
   parseOverviewPath,
@@ -59,6 +60,8 @@ export function createApp({
 
   app.get("/rum.js", (_req, res) => {
     res.sendFile(RUM_SCRIPT, {
+      // `send` 404s files under a hidden directory, e.g. `.Trash` or `.local`.
+      dotfiles: "allow",
       headers: {
         "Cache-Control": "public, max-age=300",
         "Cross-Origin-Resource-Policy": "cross-origin",
@@ -102,6 +105,7 @@ export function createApp({
       const userAgent = req.get("user-agent");
       const { ipHash, uaHash } = hashClient(ip, userAgent);
       const browser = parseBrowser(userAgent);
+      const bot = isBot(userAgent) || result.webdriver;
       store.insert(
         result.events.map((event) => ({
           ...event,
@@ -111,6 +115,7 @@ export function createApp({
           ipHash,
           uaHash,
           browser,
+          bot,
         })),
       );
       console.log(
@@ -202,9 +207,16 @@ function parseOverviewFilter(
   if (!origin.ok) return origin;
   const lang = parseOverviewLang(query.lang);
   if (!lang.ok) return lang;
+  const bot = parseOverviewBot(query.bot);
+  if (!bot.ok) return bot;
   return {
     ok: true,
-    value: { path: path.value, origin: origin.value, lang: lang.value },
+    value: {
+      path: path.value,
+      origin: origin.value,
+      lang: lang.value,
+      bot: bot.value,
+    },
   };
 }
 

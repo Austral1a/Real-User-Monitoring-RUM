@@ -1,14 +1,16 @@
 <script lang="ts">
-  import { BY_OPTIONS, RANGE_OPTIONS } from "$lib/constants";
   import { Badge } from "$lib/components/ui/badge/index.js";
+  import { BOT_OPTIONS, BY_OPTIONS, RANGE_OPTIONS } from "$lib/constants";
+  import ThemeSwitch from "$lib/ThemeSwitch.svelte";
   import ToggleGroup from "$lib/ToggleGroup.svelte";
-  import type { RangeKey, SessionKey } from "$lib/types";
+  import type { BotKey, RangeKey, SessionKey } from "$lib/types";
 
   import { filterChips } from "./helpers";
 
   let {
     range = $bindable(),
     sessionKey = $bindable(),
+    bot = $bindable(),
     path = $bindable(),
     origin = $bindable(),
     lang = $bindable(),
@@ -16,6 +18,7 @@
   }: {
     range: RangeKey;
     sessionKey: SessionKey;
+    bot: BotKey;
     path?: string;
     origin?: string;
     lang?: string;
@@ -54,9 +57,16 @@
         options={BY_OPTIONS}
         bind:value={sessionKey}
       />
+      <ToggleGroup
+        label="Bot"
+        labelledBy="bot-label"
+        options={BOT_OPTIONS}
+        bind:value={bot}
+      />
       <span class="text-muted-foreground text-sm" aria-live="polite"
         >{status}</span
       >
+      <ThemeSwitch />
     </div>
   </div>
   {#if chips.length > 0}

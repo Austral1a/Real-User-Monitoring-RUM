@@ -1,4 +1,4 @@
-import type { RangeKey, SessionKey } from "$lib/types";
+import type { BotKey, RangeKey, SessionKey } from "$lib/types";
 
 export const REFRESH_MS = 60_000;
 
@@ -21,6 +21,11 @@ export const BY_OPTIONS: { value: SessionKey; label: string }[] = [
   { value: "ua", label: "User-agent" },
   { value: "ip", label: "IP" },
   { value: "ua-ip", label: "User-agent + IP" },
+];
+
+export const BOT_OPTIONS: { value: BotKey; label: string }[] = [
+  { value: "no", label: "No" },
+  { value: "yes", label: "Yes" },
 ];
 
 export const COLORS = [
