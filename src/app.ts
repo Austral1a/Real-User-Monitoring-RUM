@@ -21,11 +21,16 @@ import {
   parseAcceptLanguage,
   parseBatch,
   parseOverviewBot,
+  parseOverviewErrorType,
+  parseOverviewHost,
   parseOverviewLang,
   parseOverviewLocale,
   parseOverviewOrigin,
   parseOverviewPath,
   parseOverviewRelease,
+  parseOverviewSpa,
+  parseOverviewStatus,
+  parseOverviewText,
 } from "./validate";
 
 export const MAX_BODY_BYTES = 8 * 1024;
@@ -240,6 +245,18 @@ function parseOverviewFilter(
   if (!release.ok) return release;
   const bot = parseOverviewBot(query.bot);
   if (!bot.ok) return bot;
+  const spa = parseOverviewSpa(query.nav);
+  if (!spa.ok) return spa;
+  const errorType = parseOverviewErrorType(query.errorType);
+  if (!errorType.ok) return errorType;
+  const errorMessage = parseOverviewText(query.errorMessage, "errorMessage");
+  if (!errorMessage.ok) return errorMessage;
+  const errorSource = parseOverviewText(query.errorSource, "errorSource");
+  if (!errorSource.ok) return errorSource;
+  const host = parseOverviewHost(query.host);
+  if (!host.ok) return host;
+  const status = parseOverviewStatus(query.status);
+  if (!status.ok) return status;
   return {
     ok: true,
     value: {
@@ -249,6 +266,12 @@ function parseOverviewFilter(
       locale: locale.value,
       release: release.value,
       bot: bot.value,
+      spa: spa.value,
+      errorType: errorType.value,
+      errorMessage: errorMessage.value,
+      errorSource: errorSource.value,
+      host: host.value,
+      status: status.value,
     },
   };
 }

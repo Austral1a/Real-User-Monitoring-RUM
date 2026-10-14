@@ -8,15 +8,21 @@
 
   import { details, errorBadge } from "./Helpers";
 
-  let { errors }: { errors: ErrorRow[] } = $props();
+  let {
+    errors,
+    filtered = false,
+  }: { errors: ErrorRow[]; filtered?: boolean } = $props();
 </script>
 
 <Card.Root>
   <Card.Header>
     <Card.Title>{t("errors.recentTitle")}</Card.Title>
+    {#if filtered}
+      <Card.Description>{t("errors.samplesHint")}</Card.Description>
+    {/if}
   </Card.Header>
   <Card.Content>
-    <Table.Root>
+    <Table.Root overflow={false}>
       <Table.Header>
         <Table.Row>
           <Table.Head>{t("errors.time")}</Table.Head>

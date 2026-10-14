@@ -105,7 +105,7 @@ describe("POST /collect", () => {
     );
     assert.deepEqual(
       store.pageViews("origin", NOW - 1000, NOW + 1000),
-      [{ key: SITE, pageLoad: 1500 }],
+      [{ key: SITE, pageLoad: 1500, lcp: null }],
     );
   });
 
@@ -303,10 +303,10 @@ describe("dashboard", () => {
       cls: 40,
     });
     assert.deepEqual(overview.pageViews.origin, [
-      { key: SITE, count: 1, pageLoad: 2000 },
+      { key: SITE, count: 1, pageLoad: 2000, lcp: 1800 },
     ]);
     assert.deepEqual(overview.pageViews.lang, [
-      { key: "uk", count: 1, pageLoad: 2000 },
+      { key: "uk", count: 1, pageLoad: 2000, lcp: 1800 },
     ]);
     // NOW sits on a 6-hour boundary, so 7 days split into exactly 28 buckets.
     assert.equal(overview.series.length, 28);
@@ -314,11 +314,13 @@ describe("dashboard", () => {
       { key: "3g", sessions: 1 },
     ]);
     assert.deepEqual(overview.pageViews.path, [
-      { key: "/uk", count: 1, pageLoad: 2000 },
+      { key: "/uk", count: 1, pageLoad: 2000, lcp: 1800 },
     ]);
     assert.deepEqual(overview.pageViews.browser, [
-      { key: "Chrome Mobile", count: 1, pageLoad: 2000 },
+      { key: "Chrome Mobile", count: 1, pageLoad: 2000, lcp: 1800 },
     ]);
+    assert.equal(overview.errorSeries.length, 28);
+    assert.equal(overview.releases.current, null);
   });
 
   it("rejects unknown ranges", async () => {

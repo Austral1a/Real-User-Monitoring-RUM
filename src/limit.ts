@@ -17,17 +17,25 @@ export function createRateLimiter(
   const windowMs = options.windowMs ?? COLLECT_RATE_WINDOW_MS;
   const now = options.now ?? Date.now;
   const hits = new Map<string, number[]>();
+  let ops = 0;
+
+  function pruneKey(key: string, cutoff: number): number[] {
+    const kept = (hits.get(key) ?? []).filter((stamp) => stamp > cutoff);
+    if (kept.length === 0) hits.delete(key);
+    else hits.set(key, kept);
+    return kept;
+  }
 
   return {
     allow(key: string) {
       const at = now();
       const cutoff = at - windowMs;
-      for (const [other, stamps] of hits) {
-        const kept = stamps.filter((stamp) => stamp > cutoff);
-        if (kept.length === 0) hits.delete(other);
-        else hits.set(other, kept);
+      const stamps = pruneKey(key, cutoff);
+      if (++ops % 32 === 0) {
+        for (const other of hits.keys()) {
+          if (other !== key) pruneKey(other, cutoff);
+        }
       }
-      const stamps = hits.get(key) ?? [];
       if (stamps.length >= max) return false;
       stamps.push(at);
       hits.set(key, stamps);

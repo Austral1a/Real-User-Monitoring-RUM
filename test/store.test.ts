@@ -181,4 +181,123 @@ describe("page loads and filters", () => {
     assert.equal(groups.length, 1);
     assert.equal(groups[0]?.count, 3);
   });
+
+  it("filters SPA views separately from full loads", () => {
+    store = openStore(":memory:");
+    store.insert([
+      event({ spa: false, pageLoad: 1000 }),
+      event({ spa: true, pageLoad: 400, sessionId: "session-2" }),
+    ]);
+    assert.equal(
+      store.totals(WINDOW.from, WINDOW.to, "session", { spa: false }).pageLoads,
+      1,
+    );
+    assert.equal(
+      store.totals(WINDOW.from, WINDOW.to, "session", { spa: true }).pageLoads,
+      1,
+    );
+    assert.equal(store.totals(WINDOW.from, WINDOW.to, "session").pageLoads, 2);
+  });
+
+  it("groups network errors by host and status", () => {
+    store = openStore(":memory:");
+    store.insert([
+      event({
+        type: "network_error",
+        pageLoad: null,
+        ttfb: null,
+        startRender: null,
+        lcp: null,
+        source: "cdn.example.com/app.js",
+        status: 503,
+        method: "GET",
+      }),
+      event({
+        type: "network_error",
+        pageLoad: null,
+        source: "cdn.example.com/chunk.js",
+        status: 503,
+        method: "GET",
+        sessionId: "session-2",
+      }),
+      event({
+        type: "network_error",
+        pageLoad: null,
+        source: "api.example.com/orders",
+        status: 0,
+        method: "POST",
+        sessionId: "session-3",
+      }),
+    ]);
+    const groups = store.networkGroups(WINDOW.from, WINDOW.to, 10);
+    assert.equal(groups[0]?.host, "cdn.example.com");
+    assert.equal(groups[0]?.status, 503);
+    assert.equal(groups[0]?.count, 2);
+    assert.equal(groups[1]?.host, "api.example.com");
+    assert.equal(groups[1]?.status, 0);
+  });
+
+  it("filters error samples by group and records last beacons", () => {
+    store = openStore(":memory:");
+    store.insert([
+      event({
+        type: "js_error",
+        message: "boom",
+        source: "a.js",
+        pageLoad: null,
+      }),
+      event({
+        type: "js_error",
+        message: "other",
+        source: "b.js",
+        pageLoad: null,
+        sessionId: "session-2",
+      }),
+      event({
+        type: "custom",
+        message: "pdf",
+        pageLoad: 150,
+        sessionId: "session-3",
+      }),
+    ]);
+    const samples = store.recentErrors(WINDOW.from, WINDOW.to, 10, {
+      errorType: "js_error",
+      errorMessage: "boom",
+      errorSource: "a.js",
+    });
+    assert.equal(samples.length, 1);
+    assert.equal(samples[0]?.message, "boom");
+    const custom = store.customEvents(WINDOW.from, WINDOW.to);
+    assert.deepEqual(custom, [{ key: "pdf", duration: 150 }]);
+    assert.equal(
+      store.siteBeacons()[0]?.origin,
+      "https://variant.kharkov.com",
+    );
+  });
+
+  it("matches network hosts with underscores as literals", () => {
+    store = openStore(":memory:");
+    store.insert([
+      event({
+        type: "network_error",
+        pageLoad: null,
+        source: "my_cdn.example.com/app.js",
+        status: 502,
+        method: "GET",
+      }),
+      event({
+        type: "network_error",
+        pageLoad: null,
+        source: "myXcdn.example.com/app.js",
+        status: 502,
+        method: "GET",
+        sessionId: "session-2",
+      }),
+    ]);
+    const samples = store.recentErrors(WINDOW.from, WINDOW.to, 10, {
+      host: "my_cdn.example.com",
+    });
+    assert.equal(samples.length, 1);
+    assert.equal(samples[0]?.source, "my_cdn.example.com/app.js");
+  });
 });

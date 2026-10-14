@@ -31,6 +31,12 @@ export const ru: Messages = {
     no: "Нет",
     yes: "Да",
   },
+  nav: {
+    label: "Просмотры",
+    all: "Все",
+    full: "Полная загрузка",
+    spa: "SPA",
+  },
   header: {
     timeRange: "Период",
     activeFilters: "Активные фильтры",
@@ -43,6 +49,9 @@ export const ru: Messages = {
     lang: "Язык",
     locale: "Локаль",
     release: "Релиз",
+    error: "Ошибка",
+    host: "Хост",
+    status: "Статус",
   },
   status: {
     loading: "Загрузка…",
@@ -56,9 +65,12 @@ export const ru: Messages = {
     noBeacons: "Маяков не было с момента запуска процесса",
     rejects:
       "{origin} отклонено по origin · {rate} ограничено по частоте · {invalid} некорректных",
+    staleSites: "Нет маяков с {names} с {time}",
     emptyTitle: "За этот период данных пока нет",
     emptyBody:
       "Откройте страницу с установленным сниппетом RUM, чтобы начать сбор.",
+    emptyBodySpa:
+      "За этот период SPA-переходов нет. Полные загрузки — во вкладке «Полная загрузка». Для клиентских маршрутов нужен актуальный сниппет.",
   },
   summary: {
     aria: "Сводка",
@@ -107,6 +119,7 @@ export const ru: Messages = {
     pageLoads: "Загрузки",
     p75Lcp: "p75 LCP",
     jsErrors: "Ошибки JS",
+    lastBeacon: "Последний маяк",
     empty: "За этот период сайтов нет",
   },
   pageViews: {
@@ -129,12 +142,21 @@ export const ru: Messages = {
     device: "Устройство",
     count: "Кол-во",
     medianLoad: "Медиана загрузки",
+    p75Lcp: "p75 LCP",
     empty: "За этот период просмотров нет",
   },
   charts: {
     timingTitle: "Тайминги во времени (p75)",
     timingLabel:
       "p75 загрузки страницы, TTFB, начала отрисовки, LCP и INP во времени",
+    errorsTitle: "Ошибки и пользовательские события во времени",
+    errorsLabel:
+      "Ошибки JS, сетевые ошибки, сбои и пользовательские события во времени",
+    jsErrors: "Ошибки JS",
+    networkErrors: "Сетевые ошибки",
+    crashes: "Сбои",
+    customEvents: "Пользовательские события",
+    count: "Кол-во",
     context: "Контекст пользователей",
     devices: "Устройства",
     devicesLabel: "Сессии по типу устройства",
@@ -156,10 +178,33 @@ export const ru: Messages = {
     title: "Пользовательские события",
     name: "Имя",
     count: "Кол-во",
+    duration: "p75 длительность",
     empty: "За этот период пользовательских событий нет",
+  },
+  releases: {
+    title: "Этот релиз к предыдущему",
+    current: "Текущий",
+    previous: "Предыдущий",
+    sessions: "Сессии",
+    p75Lcp: "p75 LCP",
+    lcpGood: "LCP хорошие",
+    jsErrors: "Ошибки JS",
+    empty: "За этот период релизов нет",
+  },
+  network: {
+    title: "Сетевые ошибки по хостам",
+    host: "Хост",
+    status: "Статус",
+    count: "Кол-во",
+    lastSeen: "Последний раз",
+    empty: "За этот период сетевых ошибок нет",
+    failed: "сбой",
   },
   errors: {
     groupsTitle: "Группы ошибок",
+    samplesHint:
+      "Выборки выбранной ошибки. Сводка, тайминги и сайты без этого фильтра.",
+    filterGroup: "Фильтровать по этой группе ошибок",
     recentTitle: "Последние ошибки",
     type: "Тип",
     details: "Подробности",

@@ -29,13 +29,14 @@
         <Table.Head>{keyHeader}</Table.Head>
         <Table.Head class="w-16 text-end">{t("pageViews.count")}</Table.Head>
         <Table.Head class="w-28 text-end">{t("pageViews.medianLoad")}</Table.Head>
+        <Table.Head class="w-24 text-end">{t("pageViews.p75Lcp")}</Table.Head>
       </Table.Row>
     </Table.Header>
     <Table.Body>
       {#if rows.length === 0}
         <Table.Row>
           <Table.Cell
-            colspan={3}
+            colspan={4}
             class="text-muted-foreground whitespace-normal text-center"
           >
             {t("pageViews.empty")}
@@ -63,6 +64,9 @@
             >
             <Table.Cell class="text-end tabular-nums whitespace-nowrap"
               >{formatMs(row.pageLoad)}</Table.Cell
+            >
+            <Table.Cell class="text-end tabular-nums whitespace-nowrap"
+              >{formatMs(row.lcp)}</Table.Cell
             >
           </Table.Row>
         {/each}

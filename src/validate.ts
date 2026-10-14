@@ -1,8 +1,10 @@
 import {
   CONNECTIONS,
   DEVICES,
+  ERROR_TYPES,
   EVENT_TYPES,
   OPERATING_SYSTEMS,
+  type ErrorType,
   type RumEvent,
 } from "./types";
 
@@ -62,9 +64,21 @@ export function parseBatch(raw: string): ParseResult {
       release: parseRelease(body.release),
     };
 
+    const parsed: RumEvent[] = [];
+    let lastError = "No valid events in batch";
+    for (const event of events) {
+      try {
+        parsed.push(parseEvent(event, context));
+      } catch (error) {
+        if (!(error instanceof ValidationError)) throw error;
+        lastError = error.message;
+      }
+    }
+    if (parsed.length === 0) throw new ValidationError(lastError);
+
     return {
       ok: true,
-      events: events.map((event) => parseEvent(event, context)),
+      events: parsed,
       webdriver: body.webdriver === true,
     };
   } catch (error) {
@@ -86,6 +100,7 @@ function parseEvent(value: unknown, context: BatchContext): RumEvent {
     locale: parseLangTag(value.locale),
     release: context.release,
     pageLoad: null,
+    duration: null,
     ttfb: null,
     startRender: null,
     lcp: null,
@@ -95,6 +110,7 @@ function parseEvent(value: unknown, context: BatchContext): RumEvent {
     source: null,
     status: null,
     method: null,
+    spa: value.spa === true,
   };
 
   switch (event.type) {
@@ -129,6 +145,7 @@ function parseEvent(value: unknown, context: BatchContext): RumEvent {
       break;
     case "custom":
       event.message = parseCustomName(value.name ?? value.message);
+      event.duration = parseDuration(value.duration, "duration");
       break;
   }
 
@@ -273,6 +290,80 @@ export function parseOverviewBot(
   }
   if (value === "yes") return { ok: true, value: true };
   return { ok: false, error: "bot must be yes or no" };
+}
+
+/** Dashboard filter. Missing means full loads and SPA views. */
+export function parseOverviewSpa(
+  value: unknown,
+): { ok: true; value?: boolean } | { ok: false; error: string } {
+  if (
+    value === undefined ||
+    value === null ||
+    value === "" ||
+    value === "all"
+  ) {
+    return { ok: true };
+  }
+  if (value === "full") return { ok: true, value: false };
+  if (value === "spa") return { ok: true, value: true };
+  return { ok: false, error: "nav must be all, full, or spa" };
+}
+
+export function parseOverviewErrorType(
+  value: unknown,
+): { ok: true; value?: ErrorType } | { ok: false; error: string } {
+  if (value === undefined || value === null || value === "") {
+    return { ok: true };
+  }
+  if (
+    typeof value === "string" &&
+    (ERROR_TYPES as readonly string[]).includes(value)
+  ) {
+    return { ok: true, value: value as ErrorType };
+  }
+  return { ok: false, error: "errorType is invalid" };
+}
+
+export function parseOverviewText(
+  value: unknown,
+  field: string,
+): { ok: true; value?: string } | { ok: false; error: string } {
+  if (value === undefined || value === null) return { ok: true };
+  if (typeof value !== "string" || value.length > MAX_TEXT_LENGTH) {
+    return { ok: false, error: `${field} is invalid` };
+  }
+  return { ok: true, value };
+}
+
+const HOST = /^[A-Za-z0-9._:[\]-]{1,253}$/;
+
+export function parseOverviewHost(
+  value: unknown,
+): { ok: true; value?: string } | { ok: false; error: string } {
+  if (value === undefined || value === null || value === "") {
+    return { ok: true };
+  }
+  if (typeof value !== "string" || !HOST.test(value)) {
+    return { ok: false, error: "host is invalid" };
+  }
+  return { ok: true, value };
+}
+
+export function parseOverviewStatus(
+  value: unknown,
+): { ok: true; value?: number } | { ok: false; error: string } {
+  if (value === undefined || value === null || value === "") {
+    return { ok: true };
+  }
+  const n = typeof value === "string" ? Number(value) : value;
+  if (
+    typeof n !== "number" ||
+    !Number.isInteger(n) ||
+    !(n === 0 || (n >= 400 && n <= 599))
+  ) {
+    return { ok: false, error: "status must be 0 or 400-599" };
+  }
+  return { ok: true, value: n };
 }
 
 function parseDuration(value: unknown, field: string): number | null {

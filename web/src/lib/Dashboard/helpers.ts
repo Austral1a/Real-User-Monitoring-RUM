@@ -1,6 +1,11 @@
 import type { BadgeVariant } from "$lib/Components/Ui/Badge/index.js";
 import { t, type MessageKey } from "$lib/I18n";
-import type { ErrorGroup, ErrorRow } from "$lib/Shared/Types";
+import type {
+  ErrorGroup,
+  ErrorRow,
+  ErrorType,
+  NetworkGroup,
+} from "$lib/Shared/Types";
 
 export function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
@@ -18,9 +23,20 @@ const FILTER_KEYS: Record<FilterKey, MessageKey> = {
   lang: "filter.lang",
   locale: "filter.locale",
   release: "filter.release",
+  error: "filter.error",
+  host: "filter.host",
+  status: "filter.status",
 };
 
-export type FilterKey = "path" | "origin" | "lang" | "locale" | "release";
+export type FilterKey =
+  | "path"
+  | "origin"
+  | "lang"
+  | "locale"
+  | "release"
+  | "error"
+  | "host"
+  | "status";
 
 export interface FilterChip {
   key: FilterKey;
@@ -28,20 +44,118 @@ export interface FilterChip {
   value: string;
 }
 
-export function filterChips(
-  path?: string,
-  origin?: string,
-  lang?: string,
-  locale?: string,
-  release?: string,
-): FilterChip[] {
+export function filterChips(state: {
+  path?: string;
+  origin?: string;
+  lang?: string;
+  locale?: string;
+  release?: string;
+  errorType?: ErrorType;
+  errorMessage?: string;
+  errorSource?: string;
+  host?: string;
+  status?: number;
+}): FilterChip[] {
   const chips: FilterChip[] = [];
-  if (path) chips.push(chip("path", path));
-  if (origin) chips.push(chip("origin", origin));
-  if (lang) chips.push(chip("lang", lang));
-  if (locale) chips.push(chip("locale", locale));
-  if (release) chips.push(chip("release", release));
+  if (state.path) chips.push(chip("path", state.path));
+  if (state.origin) chips.push(chip("origin", state.origin));
+  if (state.lang) chips.push(chip("lang", state.lang));
+  if (state.locale) chips.push(chip("locale", state.locale));
+  if (state.release) chips.push(chip("release", state.release));
+  if (state.errorType) {
+    chips.push(
+      chip("error", errorFilterLabel(state.errorType, state.errorMessage)),
+    );
+  }
+  if (state.host) chips.push(chip("host", state.host));
+  if (state.status !== undefined) {
+    chips.push(
+      chip(
+        "status",
+        state.status === 0 ? t("network.failed") : String(state.status),
+      ),
+    );
+  }
   return chips;
+}
+
+export interface ErrorScope {
+  errorType?: ErrorType;
+  errorMessage?: string;
+  errorSource?: string;
+  host?: string;
+  status?: number;
+}
+
+export function emptyErrorScope(): ErrorScope {
+  return {
+    errorType: undefined,
+    errorMessage: undefined,
+    errorSource: undefined,
+    host: undefined,
+    status: undefined,
+  };
+}
+
+export function isErrorScopeActive(scope: ErrorScope): boolean {
+  return (
+    scope.errorType !== undefined ||
+    scope.host !== undefined ||
+    scope.status !== undefined
+  );
+}
+
+export function sameErrorGroup(group: ErrorGroup, scope: ErrorScope): boolean {
+  return (
+    scope.errorType === group.type &&
+    (scope.errorMessage ?? "") === (group.message ?? "") &&
+    (scope.errorSource ?? "") === (group.source ?? "") &&
+    scope.host === undefined &&
+    scope.status === undefined
+  );
+}
+
+export function sameNetworkGroup(
+  group: NetworkGroup,
+  scope: ErrorScope,
+): boolean {
+  return scope.host === group.host && scope.status === group.status;
+}
+
+export function scopeFromErrorGroup(group: ErrorGroup): ErrorScope {
+  return {
+    ...emptyErrorScope(),
+    errorType: group.type,
+    errorMessage: group.message ?? "",
+    errorSource: group.source ?? "",
+  };
+}
+
+export function scopeFromNetworkGroup(group: NetworkGroup): ErrorScope {
+  return {
+    ...emptyErrorScope(),
+    errorType: "network_error",
+    host: group.host,
+    status: group.status,
+  };
+}
+
+export function toggleErrorGroup(
+  group: ErrorGroup,
+  scope: ErrorScope,
+): ErrorScope {
+  return sameErrorGroup(group, scope)
+    ? emptyErrorScope()
+    : scopeFromErrorGroup(group);
+}
+
+export function toggleNetworkGroup(
+  group: NetworkGroup,
+  scope: ErrorScope,
+): ErrorScope {
+  return sameNetworkGroup(group, scope)
+    ? emptyErrorScope()
+    : scopeFromNetworkGroup(group);
 }
 
 export function details(error: ErrorRow): string {
@@ -90,6 +204,13 @@ export function errorBadge(type: ErrorRow["type"]): {
     className:
       "border-transparent bg-violet-50 text-violet-800 dark:bg-violet-950 dark:text-violet-300",
   };
+}
+
+function errorFilterLabel(type: ErrorType, message?: string): string {
+  const kind = t(ERROR_KEYS[type]);
+  const detail = message?.trim();
+  if (!detail) return kind;
+  return detail.length > 80 ? `${kind}: ${detail.slice(0, 77)}…` : `${kind}: ${detail}`;
 }
 
 function chip(key: FilterKey, value: string): FilterChip {

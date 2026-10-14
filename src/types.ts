@@ -38,6 +38,8 @@ export interface RumEvent {
   os: OperatingSystem;
   connection: Connection;
   pageLoad: number | null;
+  /** Optional duration for `custom` events; not a page load. */
+  duration?: number | null;
   ttfb: number | null;
   startRender: number | null;
   lcp: number | null;
@@ -49,6 +51,8 @@ export interface RumEvent {
   source: string | null;
   status: number | null;
   method: string | null;
+  /** True after a client-side route change; omitted or false on a full load. */
+  spa?: boolean;
 }
 
 export interface StoredEvent extends RumEvent {

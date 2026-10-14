@@ -1,7 +1,7 @@
 <script lang="ts">
   import * as Card from "$lib/Components/Ui/Card/index.js";
   import * as Table from "$lib/Components/Ui/Table/index.js";
-  import { formatCount } from "$lib/Shared/Format";
+  import { formatCount, formatMs } from "$lib/Shared/Format";
   import { t } from "$lib/I18n";
   import type { CustomEventRow } from "$lib/Shared/Types";
 
@@ -18,12 +18,13 @@
         <Table.Row>
           <Table.Head>{t("customEvents.name")}</Table.Head>
           <Table.Head class="w-24 text-end">{t("customEvents.count")}</Table.Head>
+          <Table.Head class="w-28 text-end">{t("customEvents.duration")}</Table.Head>
         </Table.Row>
       </Table.Header>
       <Table.Body>
         {#if events.length === 0}
           <Table.Row>
-            <Table.Cell colspan={2} class="text-muted-foreground text-center">
+            <Table.Cell colspan={3} class="text-muted-foreground text-center">
               {t("customEvents.empty")}
             </Table.Cell>
           </Table.Row>
@@ -33,6 +34,9 @@
               <Table.Cell class="font-mono text-sm">{event.key}</Table.Cell>
               <Table.Cell class="text-end tabular-nums"
                 >{formatCount(event.count)}</Table.Cell
+              >
+              <Table.Cell class="text-end tabular-nums"
+                >{formatMs(event.duration)}</Table.Cell
               >
             </Table.Row>
           {/each}

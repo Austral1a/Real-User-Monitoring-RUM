@@ -43,6 +43,7 @@ export interface BreakdownRow {
 export interface PageViewSample {
   key: string;
   pageLoad: number | null;
+  lcp: number | null;
 }
 
 export interface ErrorGroup {
@@ -65,9 +66,31 @@ export interface SiteLcpSample {
   lcp: number;
 }
 
-export interface CustomEventRow {
+export interface CustomEventSample {
   key: string;
+  duration: number | null;
+}
+
+export interface CountEventRow {
+  receivedAt: number;
+  type: string;
+}
+
+export interface NetworkGroup {
+  host: string;
+  status: number;
   count: number;
+  lastSeen: number;
+}
+
+export interface ReleaseName {
+  key: string;
+  lastSeen: number;
+}
+
+export interface SiteBeacon {
+  origin: string;
+  lastBeaconAt: number;
 }
 
 export interface EventFilter {
@@ -78,6 +101,15 @@ export interface EventFilter {
   release?: string;
   /** `undefined` includes both; `true` is crawlers only, `false` is humans only. */
   bot?: boolean;
+  /** `undefined` includes both; `true` is SPA views, `false` is full loads. */
+  spa?: boolean;
+  errorType?: ErrorType;
+  /** `undefined` skips the filter; `""` matches a missing message. */
+  errorMessage?: string;
+  /** `undefined` skips the filter; `""` matches a missing source. */
+  errorSource?: string;
+  host?: string;
+  status?: number;
 }
 
 export const PAGEVIEW_COLUMNS = {
@@ -163,9 +195,23 @@ export interface Store {
   customEvents(
     from: number,
     to: number,
+    filter?: EventFilter,
+  ): CustomEventSample[];
+  countEvents(from: number, to: number, filter?: EventFilter): CountEventRow[];
+  networkGroups(
+    from: number,
+    to: number,
     limit: number,
     filter?: EventFilter,
-  ): CustomEventRow[];
+  ): NetworkGroup[];
+  recentReleases(
+    from: number,
+    to: number,
+    limit: number,
+    filter?: EventFilter,
+  ): ReleaseName[];
+  origins(from: number, to: number, filter?: EventFilter): { origin: string }[];
+  siteBeacons(): SiteBeacon[];
   close(): void;
 }
 
@@ -177,6 +223,16 @@ const RANGE_AND_FILTER = `
   AND (? = '' OR locale = ?)
   AND (? = '' OR release = ?)
   AND (? = -1 OR bot = ?)
+  AND (? = -1 OR spa = ?)
+`;
+
+const ERROR_AND_FILTER = `
+  ${RANGE_AND_FILTER}
+  AND (? = '' OR type = ?)
+  AND (? = -1 OR COALESCE(message, '') = ?)
+  AND (? = -1 OR COALESCE(source, '') = ?)
+  AND (? = '' OR source = ? OR substr(source, 1, length(?) + 1) = ? || '/')
+  AND (? = -1 OR status = ?)
 `;
 
 const SCHEMA = `
@@ -207,7 +263,9 @@ const SCHEMA = `
     browser TEXT NOT NULL DEFAULT 'Other',
     bot INTEGER NOT NULL DEFAULT 0,
     locale TEXT,
-    release TEXT
+    release TEXT,
+    spa INTEGER NOT NULL DEFAULT 0,
+    duration INTEGER
   );
   CREATE INDEX IF NOT EXISTS events_received_at ON events (received_at);
 `;
@@ -223,6 +281,8 @@ const ADDED_COLUMNS: ReadonlyArray<{ name: string; ddl: string }> = [
   { name: "bot", ddl: "INTEGER NOT NULL DEFAULT 0" },
   { name: "locale", ddl: "TEXT" },
   { name: "release", ddl: "TEXT" },
+  { name: "spa", ddl: "INTEGER NOT NULL DEFAULT 0" },
+  { name: "duration", ddl: "INTEGER" },
 ];
 
 type RangeParams = [
@@ -233,6 +293,24 @@ type RangeParams = [
   string,
   string,
   string,
+  string,
+  string,
+  string,
+  string,
+  string,
+  number,
+  number,
+  number,
+  number,
+];
+
+type ErrorFilterParams = [
+  ...RangeParams,
+  string,
+  string,
+  number,
+  string,
+  number,
   string,
   string,
   string,
@@ -253,6 +331,7 @@ export function bindFilter(
   const locale = filter.locale ?? "";
   const release = filter.release ?? "";
   const bot = filter.bot === undefined ? -1 : filter.bot ? 1 : 0;
+  const spa = filter.spa === undefined ? -1 : filter.spa ? 1 : 0;
   return [
     from,
     to,
@@ -268,6 +347,35 @@ export function bindFilter(
     release,
     bot,
     bot,
+    spa,
+    spa,
+  ];
+}
+
+export function bindErrorFilter(
+  from: number,
+  to: number,
+  filter: EventFilter = {},
+): ErrorFilterParams {
+  const errorType = filter.errorType ?? "";
+  const messageFlag = filter.errorMessage === undefined ? -1 : 0;
+  const sourceFlag = filter.errorSource === undefined ? -1 : 0;
+  const host = filter.host ?? "";
+  const status = filter.status === undefined ? -1 : filter.status;
+  return [
+    ...bindFilter(from, to, filter),
+    errorType,
+    errorType,
+    messageFlag,
+    filter.errorMessage ?? "",
+    sourceFlag,
+    filter.errorSource ?? "",
+    host,
+    host,
+    host,
+    host,
+    status,
+    status,
   ];
 }
 
@@ -276,6 +384,7 @@ export function openStore(path: string): Store {
 
   const db = new Database(path);
   db.pragma("journal_mode = WAL");
+  db.pragma("busy_timeout = 2000");
   db.exec(SCHEMA);
   addMissingColumns(db);
   db.exec(`
@@ -286,17 +395,25 @@ export function openStore(path: string): Store {
   const insertEvent = db.prepare(`
     INSERT INTO events (
       received_at, type, session_id, path, lang, locale, release, origin, device, os, connection, country,
-      page_load, ttfb, start_render, lcp, inp, cls, message, source, status, method,
-      ip_hash, ua_hash, browser, bot
+      page_load, ttfb, start_render, lcp, inp, cls, duration, message, source, status, method,
+      ip_hash, ua_hash, browser, bot, spa
     ) VALUES (
       @receivedAt, @type, @sessionId, @path, @lang, @locale, @release, @origin, @device, @os, @connection, @country,
-      @pageLoad, @ttfb, @startRender, @lcp, @inp, @cls, @message, @source, @status, @method,
-      @ipHash, @uaHash, @browser, @bot
+      @pageLoad, @ttfb, @startRender, @lcp, @inp, @cls, @duration, @message, @source, @status, @method,
+      @ipHash, @uaHash, @browser, @bot, @spa
     )
   `);
   const insertMany = db.transaction((events: StoredEvent[]) => {
     for (const event of events) {
-      insertEvent.run({ ...event, bot: event.bot ? 1 : 0 });
+      const customDuration =
+        event.duration ?? (event.type === "custom" ? event.pageLoad : null);
+      insertEvent.run({
+        ...event,
+        pageLoad: event.type === "custom" ? null : event.pageLoad,
+        duration: event.type === "custom" ? customDuration : (event.duration ?? null),
+        bot: event.bot ? 1 : 0,
+        spa: event.spa ? 1 : 0,
+      });
     }
   });
 
@@ -323,40 +440,86 @@ export function openStore(path: string): Store {
   );
 
   const selectErrors = db.prepare<
-    [...RangeParams, number],
+    [...ErrorFilterParams, number],
     ErrorRow
   >(`
     SELECT
       received_at AS receivedAt, type, path, message, source, status, method,
       device, os, country
     FROM events
-    WHERE type IN (${errorTypeList()}) AND ${RANGE_AND_FILTER}
+    WHERE type IN (${errorTypeList()}) AND ${ERROR_AND_FILTER}
     ORDER BY received_at DESC
     LIMIT ?
   `);
 
   const selectErrorGroups = db.prepare<
-    [...RangeParams, number],
+    [...ErrorFilterParams, number],
     ErrorGroup
   >(`
     SELECT type, message, source, COUNT(*) AS count, MAX(received_at) AS lastSeen
     FROM events
-    WHERE type IN (${errorTypeList()}) AND ${RANGE_AND_FILTER}
+    WHERE type IN (${errorTypeList()}) AND ${ERROR_AND_FILTER}
     GROUP BY type, COALESCE(message, ''), COALESCE(source, '')
     ORDER BY count DESC, lastSeen DESC
     LIMIT ?
   `);
 
-  const selectCustomEvents = db.prepare<
-    [...RangeParams, number],
-    CustomEventRow
-  >(`
-    SELECT message AS key, COUNT(*) AS count
+  const selectCustomEvents = db.prepare<RangeParams, CustomEventSample>(`
+    SELECT message AS key, COALESCE(duration, page_load) AS duration
     FROM events
     WHERE type = 'custom' AND ${RANGE_AND_FILTER}
-    GROUP BY message
-    ORDER BY count DESC, key ASC
+  `);
+
+  const selectCountEvents = db.prepare<RangeParams, CountEventRow>(`
+    SELECT received_at AS receivedAt, type
+    FROM events
+    WHERE type IN ('js_error', 'network_error', 'crash', 'custom')
+      AND ${RANGE_AND_FILTER}
+  `);
+
+  const selectNetworkGroups = db.prepare<
+    [...RangeParams, number],
+    NetworkGroup
+  >(`
+    SELECT
+      CASE
+        WHEN source IS NULL OR source = '' THEN 'unknown'
+        WHEN instr(source, '/') > 0 THEN substr(source, 1, instr(source, '/') - 1)
+        ELSE source
+      END AS host,
+      COALESCE(status, 0) AS status,
+      COUNT(*) AS count,
+      MAX(received_at) AS lastSeen
+    FROM events
+    WHERE type = 'network_error' AND ${RANGE_AND_FILTER}
+    GROUP BY 1, 2
+    ORDER BY count DESC, lastSeen DESC
     LIMIT ?
+  `);
+
+  const selectRecentReleases = db.prepare<
+    [...RangeParams, number],
+    ReleaseName
+  >(`
+    SELECT release AS key, MAX(received_at) AS lastSeen
+    FROM events
+    WHERE release IS NOT NULL AND release != '' AND ${RANGE_AND_FILTER}
+    GROUP BY 1
+    ORDER BY lastSeen DESC, key ASC
+    LIMIT ?
+  `);
+
+  const selectSiteBeacons = db.prepare<[], SiteBeacon>(`
+    SELECT COALESCE(origin, 'unknown') AS origin, MAX(received_at) AS lastBeaconAt
+    FROM events
+    GROUP BY 1
+  `);
+
+  const selectOrigins = db.prepare<RangeParams, { origin: string }>(`
+    SELECT DISTINCT COALESCE(origin, 'unknown') AS origin
+    FROM events
+    WHERE ${RANGE_AND_FILTER}
+    ORDER BY origin ASC
   `);
 
   const selectSiteLcps = db.prepare<RangeParams, SiteLcpSample>(`
@@ -405,7 +568,7 @@ export function openStore(path: string): Store {
       key,
       db.prepare<RangeParams, PageViewSample>(`
         SELECT COALESCE(NULLIF(${column}, ''), '${fallbackLabel(key as PageViewKey)}') AS key,
-               page_load AS pageLoad
+               page_load AS pageLoad, lcp
         FROM events
         WHERE type = 'timing' AND page_load IS NOT NULL AND ${RANGE_AND_FILTER}
       `),
@@ -420,19 +583,28 @@ export function openStore(path: string): Store {
     totals: (from, to, sessionKey, filter) =>
       selectTotals[sessionKey].get(...bindFilter(from, to, filter)) as Totals,
     recentErrors: (from, to, limit, filter) =>
-      selectErrors.all(...bindFilter(from, to, filter), limit),
+      selectErrors.all(...bindErrorFilter(from, to, filter), limit),
     breakdown: (key, from, to, sessionKey, filter) =>
       selectBreakdown[sessionKey][key].all(...bindFilter(from, to, filter)),
     pageViews: (key, from, to, filter) =>
       selectPageViews[key].all(...bindFilter(from, to, filter)),
     groupedErrors: (from, to, limit, filter) =>
-      selectErrorGroups.all(...bindFilter(from, to, filter), limit),
+      selectErrorGroups.all(...bindErrorFilter(from, to, filter), limit),
     siteStats: (from, to, sessionKey, filter) =>
       selectSiteStats[sessionKey].all(...bindFilter(from, to, filter)),
     siteLcps: (from, to, filter) =>
       selectSiteLcps.all(...bindFilter(from, to, filter)),
-    customEvents: (from, to, limit, filter) =>
-      selectCustomEvents.all(...bindFilter(from, to, filter), limit),
+    customEvents: (from, to, filter) =>
+      selectCustomEvents.all(...bindFilter(from, to, filter)),
+    countEvents: (from, to, filter) =>
+      selectCountEvents.all(...bindFilter(from, to, filter)),
+    origins: (from, to, filter) =>
+      selectOrigins.all(...bindFilter(from, to, filter)),
+    networkGroups: (from, to, limit, filter) =>
+      selectNetworkGroups.all(...bindFilter(from, to, filter), limit),
+    recentReleases: (from, to, limit, filter) =>
+      selectRecentReleases.all(...bindFilter(from, to, filter), limit),
+    siteBeacons: () => selectSiteBeacons.all(),
     close: () => db.close(),
   };
 }

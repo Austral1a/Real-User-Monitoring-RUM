@@ -21,8 +21,11 @@
   const MAX_EVENTS_PER_BATCH = 20;
   // The server rejects bodies over 8 KB.
   const MAX_BATCH_BYTES = 7000;
-  const MAX_ERRORS_PER_PAGE = 50;
+  const MAX_JS_ERRORS = 50;
+  const MAX_NETWORK_ERRORS = 50;
   const MAX_TEXT_LENGTH = 300;
+  const SPA_LCP_WAIT_MS = 3000;
+  const CUSTOM_NAME = /^[a-z0-9][a-z0-9._-]{0,63}$/;
   const FLUSH_DELAY_MS = 2000;
   const CONNECTIONS = ["slow-2g", "2g", "3g", "4g"];
   const CLS_GAP_MS = 1000;
@@ -44,7 +47,10 @@
 
   let queue = [];
   let flushTimer = 0;
-  let errorCount = 0;
+  let spaTimingTimer = 0;
+  let jsErrorCount = 0;
+  let networkErrorCount = 0;
+  let navLock = false;
   let viewPath = location.pathname;
   let spaNavStart = 0;
   let spaStartRender = null;
@@ -58,6 +64,7 @@
   let sentLcp = null;
   let sentInp = null;
   let sentCls = null;
+  let spaView = false;
   const observers = [];
 
   function getSessionId() {
@@ -163,6 +170,7 @@
           lang: visitorLang(),
           locale: pageLocale(),
         },
+        spaView ? { spa: true } : {},
         event,
       ),
     );
@@ -251,7 +259,8 @@
   }
 
   function resetView() {
-    errorCount = 0;
+    jsErrorCount = 0;
+    networkErrorCount = 0;
     lcp = null;
     inp = null;
     clsWindow = 0;
@@ -307,7 +316,14 @@
     }
   }
 
+  function clearSpaTimingTimer() {
+    clearTimeout(spaTimingTimer);
+    spaTimingTimer = 0;
+  }
+
   function reportSpaTiming() {
+    clearSpaTimingTimer();
+    if (sentPageLoad) return;
     const pageLoad = lcp !== null ? lcp : spaStartRender;
     const timing = {
       type: "timing",
@@ -324,20 +340,35 @@
     rememberSentVitals();
   }
 
-  function onClientNavigate() {
-    const next = location.pathname;
-    if (next === viewPath) return;
-    flushVitals();
-    viewPath = next;
-    spaNavStart = performance.now();
-    resetView();
+  function scheduleSpaTiming() {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         if (location.pathname !== viewPath) return;
         spaStartRender = Math.round(performance.now() - spaNavStart);
-        reportSpaTiming();
+        if (lcp !== null) {
+          reportSpaTiming();
+          return;
+        }
+        clearSpaTimingTimer();
+        spaTimingTimer = setTimeout(reportSpaTiming, SPA_LCP_WAIT_MS);
       });
     });
+  }
+
+  function onClientNavigate() {
+    const next = location.pathname;
+    if (next === viewPath || navLock) return;
+    navLock = true;
+    queueMicrotask(() => {
+      navLock = false;
+    });
+    clearSpaTimingTimer();
+    flushVitals();
+    viewPath = next;
+    spaNavStart = performance.now();
+    resetView();
+    spaView = true;
+    scheduleSpaTiming();
   }
 
   function wrapHistory(method) {
@@ -404,6 +435,9 @@
         ? Math.max(0, Math.round(entry.startTime - spaNavStart))
         : Math.round(entry.startTime);
     if (start >= 0) lcp = start;
+    if (spaView && !sentPageLoad && lcp !== null && spaStartRender !== null) {
+      reportSpaTiming();
+    }
   }
 
   function onEventTiming(entry) {
@@ -452,8 +486,8 @@
   }
 
   function reportError(message, source) {
-    if (errorCount >= MAX_ERRORS_PER_PAGE) return;
-    errorCount += 1;
+    if (jsErrorCount >= MAX_JS_ERRORS) return;
+    jsErrorCount += 1;
     push({
       type: "js_error",
       message: truncate(message) || "Unknown error",
@@ -489,8 +523,8 @@
     }
     if (url.href.startsWith(endpoint) || !/^https?:$/.test(url.protocol))
       return;
-    if (errorCount >= MAX_ERRORS_PER_PAGE) return;
-    errorCount += 1;
+    if (networkErrorCount >= MAX_NETWORK_ERRORS) return;
+    networkErrorCount += 1;
 
     const upper = String(method || "GET").toUpperCase();
     push({
@@ -549,13 +583,28 @@
   }
 
   window.rum = {
-    track: function (name) {
-      if (typeof name !== "string") return;
-      push({ type: "custom", name: name });
+    track: function (name, duration) {
+      if (typeof name !== "string" || !CUSTOM_NAME.test(name)) return;
+      const event = { type: "custom", name: name };
+      if (
+        typeof duration === "number" &&
+        Number.isFinite(duration) &&
+        duration >= 0 &&
+        duration <= 10 * 60 * 1000
+      ) {
+        event.duration = Math.round(duration);
+      }
+      push(event);
     },
   };
 
   // Crashed sessions and delivery on exit
+
+  addEventListener("pageshow", (event) => {
+    if (!event.persisted) return;
+    jsErrorCount = 0;
+    networkErrorCount = 0;
+  });
 
   addEventListener("pagehide", () => {
     if (document.readyState !== "complete") push({ type: "crash" });

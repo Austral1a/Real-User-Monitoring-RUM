@@ -1,6 +1,8 @@
 export type RangeKey = "24h" | "7d" | "30d";
 export type SessionKey = "session" | "ua" | "ip" | "ua-ip";
 export type BotKey = "yes" | "no";
+export type NavKey = "all" | "full" | "spa";
+export type ErrorType = "js_error" | "network_error" | "crash";
 
 export interface TimingSummary {
   pageLoad: number | null;
@@ -22,6 +24,14 @@ export interface SeriesPoint extends TimingSummary {
   samples: number;
 }
 
+export interface CountPoint {
+  start: number;
+  jsErrors: number;
+  networkErrors: number;
+  crashes: number;
+  custom: number;
+}
+
 export interface Totals {
   sessions: number;
   pageLoads: number;
@@ -39,11 +49,12 @@ export interface PageViewRow {
   key: string;
   count: number;
   pageLoad: number | null;
+  lcp: number | null;
 }
 
 export interface ErrorRow {
   receivedAt: number;
-  type: "js_error" | "network_error" | "crash";
+  type: ErrorType;
   path: string;
   message: string | null;
   source: string | null;
@@ -62,6 +73,13 @@ export interface ErrorGroup {
   lastSeen: number;
 }
 
+export interface NetworkGroup {
+  host: string;
+  status: number;
+  count: number;
+  lastSeen: number;
+}
+
 export interface VitalScore {
   good: number;
   ni: number;
@@ -75,11 +93,25 @@ export interface SiteRow {
   pageLoads: number;
   jsErrors: number;
   lcp: number | null;
+  lastBeaconAt: number | null;
 }
 
 export interface CustomEventRow {
   key: string;
   count: number;
+  duration: number | null;
+}
+
+export interface ReleaseSlice {
+  release: string;
+  totals: Totals;
+  p75: TimingSummary;
+  lcp: VitalScore;
+}
+
+export interface ReleaseCompare {
+  current: ReleaseSlice | null;
+  previous: ReleaseSlice | null;
 }
 
 export interface IngestStats {
@@ -99,6 +131,12 @@ export interface Overview {
   locale: string | null;
   release: string | null;
   bot: boolean;
+  spa: boolean | null;
+  errorType: ErrorType | null;
+  errorMessage: string | null;
+  errorSource: string | null;
+  host: string | null;
+  status: number | null;
   from: number;
   to: number;
   totals: Totals;
@@ -113,10 +151,13 @@ export interface Overview {
     cls: VitalScore;
   };
   series: SeriesPoint[];
+  errorSeries: CountPoint[];
   recentErrors: ErrorRow[];
   errorGroups: ErrorGroup[];
+  networkGroups: NetworkGroup[];
   sites: SiteRow[];
   customEvents: CustomEventRow[];
+  releases: ReleaseCompare;
   breakdowns: {
     device: BreakdownRow[];
     os: BreakdownRow[];

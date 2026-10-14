@@ -9,15 +9,31 @@
   import { formatDateTime, formatTime } from "$lib/Shared/Format";
   import { t } from "$lib/I18n";
   import { readSearch, writeSearch } from "$lib/Shared/Search";
-  import type { BotKey, Overview, RangeKey, SessionKey } from "$lib/Shared/Types";
+  import type {
+    BotKey,
+    ErrorGroup,
+    ErrorType,
+    NavKey,
+    NetworkGroup,
+    Overview,
+    RangeKey,
+    SessionKey,
+  } from "$lib/Shared/Types";
 
   import ContextCharts from "./ContextCharts.svelte";
   import CustomEvents from "./CustomEvents.svelte";
   import ErrorGroups from "./ErrorGroups.svelte";
   import ErrorTable from "./ErrorTable.svelte";
   import Header from "./Header.svelte";
-  import { isAbortError } from "./Helpers";
+  import {
+    isAbortError,
+    isErrorScopeActive,
+    toggleErrorGroup,
+    toggleNetworkGroup,
+  } from "./Helpers";
+  import NetworkErrors from "./NetworkErrors.svelte";
   import PageViews from "./PageViews.svelte";
+  import ReleaseCompare from "./ReleaseCompare.svelte";
   import Sites from "./Sites.svelte";
   import SummaryCards from "./SummaryCards.svelte";
 
@@ -27,11 +43,17 @@
   let range = $state<RangeKey>(initial.range);
   let sessionKey = $state<SessionKey>(initial.sessionKey);
   let bot = $state<BotKey>(initial.bot);
+  let nav = $state<NavKey>(initial.nav);
   let path = $state<string | undefined>(initial.path);
   let origin = $state<string | undefined>(initial.origin);
   let lang = $state<string | undefined>(initial.lang);
   let locale = $state<string | undefined>(initial.locale);
   let release = $state<string | undefined>(initial.release);
+  let errorType = $state<ErrorType | undefined>(initial.errorType);
+  let errorMessage = $state<string | undefined>(initial.errorMessage);
+  let errorSource = $state<string | undefined>(initial.errorSource);
+  let host = $state<string | undefined>(initial.host);
+  let status = $state<number | undefined>(initial.status);
   let data = $state<Overview | null>(null);
   let statusKind = $state<"loading" | "updated" | "">("");
   let updatedAt = $state(0);
@@ -40,7 +62,7 @@
   let generation = 0;
   let abort: AbortController | undefined;
 
-  const status = $derived(
+  const statusLabel = $derived(
     statusKind === "loading"
       ? t("status.loading")
       : statusKind === "updated"
@@ -52,21 +74,43 @@
     loadError ? t("status.loadFailed", { message: loadError }) : "",
   );
 
+  const errorScope = $derived({
+    errorType,
+    errorMessage,
+    errorSource,
+    host,
+    status,
+  });
+
   const ingestHint = $derived.by(() => {
     if (!data) return "";
     const { ingest } = data;
     const rejects = ingest.originRejected + ingest.rateLimited + ingest.invalid;
-    const stale =
-      ingest.lastBeaconAt === null || Date.now() - ingest.lastBeaconAt > STALE_MS;
-    if (!stale && rejects === 0) return "";
+    const processStale =
+      ingest.lastBeaconAt !== null &&
+      Date.now() - ingest.lastBeaconAt > STALE_MS;
+    const staleSites = data.sites.filter(
+      (site) =>
+        site.lastBeaconAt !== null && Date.now() - site.lastBeaconAt > STALE_MS,
+    );
+    if (!processStale && rejects === 0 && staleSites.length === 0) return "";
     const parts = [];
-    if (stale) {
+    if (processStale && ingest.lastBeaconAt) {
       parts.push(
-        ingest.lastBeaconAt
-          ? t("alerts.lastBeacon", {
-              time: formatDateTime(ingest.lastBeaconAt),
-            })
-          : t("alerts.noBeacons"),
+        t("alerts.lastBeacon", {
+          time: formatDateTime(ingest.lastBeaconAt),
+        }),
+      );
+    }
+    if (staleSites.length > 0) {
+      const oldest = staleSites.reduce((min, site) =>
+        (site.lastBeaconAt ?? 0) < (min.lastBeaconAt ?? 0) ? site : min,
+      );
+      parts.push(
+        t("alerts.staleSites", {
+          names: staleSites.map((site) => site.origin).join(", "),
+          time: formatDateTime(oldest.lastBeaconAt ?? 0),
+        }),
       );
     }
     if (rejects > 0) {
@@ -92,7 +136,20 @@
       const next = await fetchOverview(
         range,
         sessionKey,
-        { path, origin, lang, locale, release, bot },
+        {
+          path,
+          origin,
+          lang,
+          locale,
+          release,
+          bot,
+          nav,
+          errorType,
+          errorMessage,
+          errorSource,
+          host,
+          status,
+        },
         signal,
       );
       if (id !== generation) return;
@@ -111,16 +168,59 @@
     }
   }
 
+  function applyErrorScope(scope: {
+    errorType?: ErrorType;
+    errorMessage?: string;
+    errorSource?: string;
+    host?: string;
+    status?: number;
+  }) {
+    errorType = scope.errorType;
+    errorMessage = scope.errorMessage;
+    errorSource = scope.errorSource;
+    host = scope.host;
+    status = scope.status;
+  }
+
+  function selectErrorGroup(group: ErrorGroup) {
+    applyErrorScope(toggleErrorGroup(group, errorScope));
+  }
+
+  function selectNetworkGroup(group: NetworkGroup) {
+    applyErrorScope(toggleNetworkGroup(group, errorScope));
+  }
+
   $effect(() => {
     void range;
     void sessionKey;
     void bot;
+    void nav;
     void path;
     void origin;
     void lang;
     void locale;
     void release;
-    writeSearch({ range, sessionKey, bot, path, origin, lang, locale, release });
+    void errorType;
+    void errorMessage;
+    void errorSource;
+    void host;
+    void status;
+    writeSearch({
+      range,
+      sessionKey,
+      bot,
+      nav,
+      path,
+      origin,
+      lang,
+      locale,
+      release,
+      errorType,
+      errorMessage,
+      errorSource,
+      host,
+      status,
+    });
     void load();
   });
 
@@ -135,12 +235,18 @@
   bind:range
   bind:sessionKey
   bind:bot
+  bind:nav
   bind:path
   bind:origin
   bind:lang
   bind:locale
   bind:release
-  {status}
+  bind:errorType
+  bind:errorMessage
+  bind:errorSource
+  bind:host
+  bind:status
+  {statusLabel}
 />
 
 <main class="mx-auto grid max-w-7xl gap-4 px-6 py-5 pb-10">
@@ -163,7 +269,7 @@
       <InfoIcon />
       <Alert.Title>{t("alerts.emptyTitle")}</Alert.Title>
       <Alert.Description>
-        {t("alerts.emptyBody")}
+        {nav === "spa" ? t("alerts.emptyBodySpa") : t("alerts.emptyBody")}
       </Alert.Description>
     </Alert.Root>
   {/if}
@@ -175,10 +281,30 @@
       selected={origin}
       onSelect={(value) => (origin = origin === value ? undefined : value)}
     />
+    {#if data.releases.current}
+      <ReleaseCompare releases={data.releases} />
+    {/if}
     <PageViews {data} bind:path bind:origin bind:lang bind:locale bind:release />
     <ContextCharts {data} />
     <CustomEvents events={data.customEvents} />
-    <ErrorGroups groups={data.errorGroups} />
-    <ErrorTable errors={data.recentErrors} />
+    <NetworkErrors
+      groups={data.networkGroups}
+      {host}
+      {status}
+      onSelect={selectNetworkGroup}
+    />
+    <ErrorGroups
+      groups={data.errorGroups}
+      {errorType}
+      {errorMessage}
+      {errorSource}
+      {host}
+      {status}
+      onSelect={selectErrorGroup}
+    />
+    <ErrorTable
+      errors={data.recentErrors}
+      filtered={isErrorScopeActive(errorScope)}
+    />
   {/if}
 </main>

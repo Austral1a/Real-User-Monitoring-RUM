@@ -5,12 +5,16 @@
 	let {
 		ref = $bindable(null),
 		class: className,
+		overflow = true,
 		children,
 		...restProps
-	}: WithElementRef<HTMLTableAttributes> = $props();
+	}: WithElementRef<HTMLTableAttributes> & { overflow?: boolean } = $props();
 </script>
 
-<div data-slot="table-container" class="relative w-full overflow-x-auto">
+<div
+	data-slot="table-container"
+	class={cn("relative w-full", overflow && "overflow-x-auto")}
+>
 	<table bind:this={ref} data-slot="table" class={cn("w-full caption-bottom text-sm", className)} {...restProps}>
 		{@render children?.()}
 	</table>

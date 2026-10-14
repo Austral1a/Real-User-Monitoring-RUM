@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  countSeries,
   percentile,
+  rankCustomEvents,
   rankPageViews,
   rankSites,
   summarizeTimings,
@@ -70,30 +72,30 @@ describe("rankPageViews", () => {
   it("ranks groups by count and reports the median load", () => {
     const ranked = rankPageViews(
       [
-        { key: "/uk", pageLoad: 100 },
-        { key: "/en", pageLoad: 400 },
-        { key: "/uk", pageLoad: 300 },
-        { key: "/uk", pageLoad: 200 },
-        { key: "/en", pageLoad: null },
+        { key: "/uk", pageLoad: 100, lcp: 1000 },
+        { key: "/en", pageLoad: 400, lcp: 4000 },
+        { key: "/uk", pageLoad: 300, lcp: 3000 },
+        { key: "/uk", pageLoad: 200, lcp: 2000 },
+        { key: "/en", pageLoad: null, lcp: null },
       ],
       10,
     );
     assert.deepEqual(ranked, [
-      { key: "/uk", count: 3, pageLoad: 200 },
-      { key: "/en", count: 2, pageLoad: 400 },
+      { key: "/uk", count: 3, pageLoad: 200, lcp: 3000 },
+      { key: "/en", count: 2, pageLoad: 400, lcp: 4000 },
     ]);
   });
 
   it("keeps only the top rows", () => {
     const ranked = rankPageViews(
       [
-        { key: "/a", pageLoad: 1 },
-        { key: "/b", pageLoad: 1 },
-        { key: "/a", pageLoad: 2 },
+        { key: "/a", pageLoad: 1, lcp: null },
+        { key: "/b", pageLoad: 1, lcp: null },
+        { key: "/a", pageLoad: 2, lcp: null },
       ],
       1,
     );
-    assert.deepEqual(ranked, [{ key: "/a", count: 2, pageLoad: 1 }]);
+    assert.deepEqual(ranked, [{ key: "/a", count: 2, pageLoad: 1, lcp: null }]);
   });
 });
 
@@ -165,5 +167,78 @@ describe("rankSites", () => {
     assert.equal(sites[0]?.origin, "https://a.test");
     assert.equal(sites[0]?.lcp, 4000);
     assert.equal(sites[1]?.lcp, 2000);
+    assert.equal(sites[0]?.lastBeaconAt, null);
+  });
+
+  it("attaches the last beacon per origin", () => {
+    const sites = rankSites(
+      [
+        {
+          origin: "https://a.test",
+          sessions: 1,
+          pageLoads: 1,
+          jsErrors: 0,
+        },
+      ],
+      [],
+      [{ origin: "https://a.test", lastBeaconAt: 99 }],
+    );
+    assert.equal(sites[0]?.lastBeaconAt, 99);
+  });
+});
+
+describe("countSeries", () => {
+  it("buckets error and custom counts and keeps empty buckets", () => {
+    const from = 10 * HOUR;
+    const to = from + 3 * HOUR;
+    const series = countSeries(
+      [
+        { receivedAt: 10 * HOUR + 1, type: "js_error" },
+        { receivedAt: 10 * HOUR + 2, type: "network_error" },
+        { receivedAt: 12 * HOUR, type: "custom" },
+        { receivedAt: 12 * HOUR + 1, type: "crash" },
+      ],
+      from,
+      to,
+      HOUR,
+    );
+    assert.deepEqual(series, [
+      {
+        start: 10 * HOUR,
+        jsErrors: 1,
+        networkErrors: 1,
+        crashes: 0,
+        custom: 0,
+      },
+      {
+        start: 11 * HOUR,
+        jsErrors: 0,
+        networkErrors: 0,
+        crashes: 0,
+        custom: 0,
+      },
+      {
+        start: 12 * HOUR,
+        jsErrors: 0,
+        networkErrors: 0,
+        crashes: 1,
+        custom: 1,
+      },
+    ]);
+  });
+});
+
+describe("rankCustomEvents", () => {
+  it("ranks by count and reports p75 duration", () => {
+    const ranked = rankCustomEvents([
+      { key: "pdf", duration: 100 },
+      { key: "pdf", duration: 200 },
+      { key: "pdf", duration: 400 },
+      { key: "click", duration: null },
+    ]);
+    assert.deepEqual(ranked, [
+      { key: "pdf", count: 3, duration: 400 },
+      { key: "click", count: 1, duration: null },
+    ]);
   });
 });

@@ -8,7 +8,12 @@ import {
   formatBucket,
   formatMs,
 } from "$lib/Shared/Format";
-import type { BreakdownRow, RangeKey, SeriesPoint } from "$lib/Shared/Types";
+import type {
+  BreakdownRow,
+  CountPoint,
+  RangeKey,
+  SeriesPoint,
+} from "$lib/Shared/Types";
 
 export function timingChart(
   series: SeriesPoint[],
@@ -55,6 +60,61 @@ export function timingChart(
           callbacks: {
             label: (item) =>
               `${item.dataset.label}: ${formatMs(item.parsed.y)}`,
+          },
+        },
+      },
+    },
+  };
+}
+
+export function countChart(
+  series: CountPoint[],
+  range: RangeKey,
+): ChartConfiguration {
+  const seriesKeys = [
+    { key: "jsErrors" as const, label: t("charts.jsErrors"), color: COLORS[3] },
+    {
+      key: "networkErrors" as const,
+      label: t("charts.networkErrors"),
+      color: COLORS[2],
+    },
+    { key: "crashes" as const, label: t("charts.crashes"), color: COLORS[4] },
+    {
+      key: "custom" as const,
+      label: t("charts.customEvents"),
+      color: COLORS[0],
+    },
+  ];
+
+  return {
+    type: "line",
+    data: {
+      labels: series.map((point) => formatBucket(point.start, range)),
+      datasets: seriesKeys.map(({ key, label, color }) => ({
+        label,
+        data: series.map((point) => point[key]),
+        borderColor: color,
+        backgroundColor: color,
+        spanGaps: true,
+        tension: 0.25,
+        pointRadius: 2,
+      })),
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { precision: 0 },
+        },
+      },
+      plugins: {
+        tooltip: {
+          callbacks: {
+            label: (item) =>
+              `${item.dataset.label}: ${item.parsed.y}`,
           },
         },
       },

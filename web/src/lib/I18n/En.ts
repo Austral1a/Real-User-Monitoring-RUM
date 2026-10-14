@@ -29,6 +29,12 @@ export const en = {
     no: "No",
     yes: "Yes",
   },
+  nav: {
+    label: "Views",
+    all: "All",
+    full: "Full load",
+    spa: "SPA",
+  },
   header: {
     timeRange: "Time range",
     activeFilters: "Active filters",
@@ -41,6 +47,9 @@ export const en = {
     lang: "Language",
     locale: "Locale",
     release: "Release",
+    error: "Error",
+    host: "Host",
+    status: "Status",
   },
   status: {
     loading: "Loading…",
@@ -54,9 +63,12 @@ export const en = {
     noBeacons: "No beacons since this process started",
     rejects:
       "{origin} origin rejected · {rate} rate limited · {invalid} invalid",
+    staleSites: "No beacon from {names} since {time}",
     emptyTitle: "No data for this period yet",
     emptyBody:
       "Open a page with the RUM snippet installed to start collecting.",
+    emptyBodySpa:
+      "No SPA navigations in this period. Full loads are listed under Full load. Client-side route changes need the current snippet.",
   },
   summary: {
     aria: "Summary",
@@ -105,6 +117,7 @@ export const en = {
     pageLoads: "Page loads",
     p75Lcp: "p75 LCP",
     jsErrors: "JS errors",
+    lastBeacon: "Last beacon",
     empty: "No sites in this period",
   },
   pageViews: {
@@ -127,11 +140,19 @@ export const en = {
     device: "Device",
     count: "Count",
     medianLoad: "Median load",
+    p75Lcp: "p75 LCP",
     empty: "No page views in this period",
   },
   charts: {
     timingTitle: "Timing over time (p75)",
     timingLabel: "p75 page load, TTFB, start render, LCP and INP over time",
+    errorsTitle: "Errors and custom events over time",
+    errorsLabel: "JS errors, network errors, crashes, and custom events over time",
+    jsErrors: "JS errors",
+    networkErrors: "Network errors",
+    crashes: "Crashes",
+    customEvents: "Custom events",
+    count: "Count",
     context: "User context",
     devices: "Devices",
     devicesLabel: "Sessions by device type",
@@ -153,11 +174,34 @@ export const en = {
     title: "Custom events",
     name: "Name",
     count: "Count",
+    duration: "p75 duration",
     empty: "No custom events in this period",
+  },
+  releases: {
+    title: "This release vs previous",
+    current: "Current",
+    previous: "Previous",
+    sessions: "Sessions",
+    p75Lcp: "p75 LCP",
+    lcpGood: "LCP good",
+    jsErrors: "JS errors",
+    empty: "No releases in this period",
+  },
+  network: {
+    title: "Network errors by host",
+    host: "Host",
+    status: "Status",
+    count: "Count",
+    lastSeen: "Last seen",
+    empty: "No network errors in this period",
+    failed: "failed",
   },
   errors: {
     groupsTitle: "Error groups",
     recentTitle: "Recent errors",
+    samplesHint:
+      "Samples of the selected error. Summary, timings, and sites stay unfiltered.",
+    filterGroup: "Filter by this error group",
     type: "Type",
     details: "Details",
     count: "Count",

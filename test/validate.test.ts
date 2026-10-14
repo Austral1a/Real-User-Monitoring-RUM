@@ -7,6 +7,8 @@ import {
   parseBatch,
   parseLangTag,
   parseOverviewBot,
+  parseOverviewErrorType,
+  parseOverviewSpa,
   redactUrls,
   stripQuery,
 } from "../src/validate";
@@ -64,6 +66,7 @@ describe("parseBatch", () => {
         locale: null,
         release: null,
         pageLoad: 1235,
+        duration: null,
         ttfb: 80,
         startRender: 400,
         lcp: null,
@@ -73,6 +76,7 @@ describe("parseBatch", () => {
         source: null,
         status: null,
         method: null,
+        spa: false,
       },
     );
     assert.equal(result.events[2].method, "POST");
@@ -170,6 +174,35 @@ describe("parseBatch", () => {
     assert.equal(result.events[0].type, "custom");
     assert.equal(result.events[0].message, "pdf");
     assert.equal(result.events[0].release, "2026-10-13");
+    assert.equal(result.events[0].pageLoad, null);
+    assert.equal(result.events[0].spa, false);
+  });
+
+  it("stores spa timing and a custom event duration", () => {
+    const result = parseBatch(
+      batch([
+        { type: "timing", path: "/uk", pageLoad: 400, spa: true },
+        { type: "custom", path: "/uk", name: "pdf", duration: 120.4 },
+      ]),
+    );
+    assert.ok(result.ok);
+    assert.equal(result.events[0].spa, true);
+    assert.equal(result.events[1].pageLoad, null);
+    assert.equal(result.events[1].duration, 120);
+    assert.equal(result.events[1].message, "pdf");
+  });
+
+  it("keeps valid events when one event in the batch is invalid", () => {
+    const result = parseBatch(
+      batch([
+        { type: "timing", path: "/uk", pageLoad: 900 },
+        { type: "custom", path: "/uk", name: "Not Valid" },
+      ]),
+    );
+    assert.ok(result.ok);
+    assert.equal(result.events.length, 1);
+    assert.equal(result.events[0].type, "timing");
+    assert.equal(result.events[0].pageLoad, 900);
   });
 
   const rejected: [string, string][] = [
@@ -275,6 +308,27 @@ describe("parseOverviewBot", () => {
     assert.deepEqual(parseOverviewBot("no"), { ok: true, value: false });
     assert.deepEqual(parseOverviewBot("yes"), { ok: true, value: true });
     assert.equal(parseOverviewBot("maybe").ok, false);
+  });
+});
+
+describe("parseOverviewSpa", () => {
+  it("defaults to all views and accepts full or spa", () => {
+    assert.deepEqual(parseOverviewSpa(undefined), { ok: true });
+    assert.deepEqual(parseOverviewSpa("all"), { ok: true });
+    assert.deepEqual(parseOverviewSpa("full"), { ok: true, value: false });
+    assert.deepEqual(parseOverviewSpa("spa"), { ok: true, value: true });
+    assert.equal(parseOverviewSpa("maybe").ok, false);
+  });
+});
+
+describe("parseOverviewErrorType", () => {
+  it("accepts known error types", () => {
+    assert.deepEqual(parseOverviewErrorType(undefined), { ok: true });
+    assert.deepEqual(parseOverviewErrorType("js_error"), {
+      ok: true,
+      value: "js_error",
+    });
+    assert.equal(parseOverviewErrorType("timing").ok, false);
   });
 });
 

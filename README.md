@@ -8,17 +8,17 @@ The snippet at `/rum.js` batches events to `POST /collect` on the host that serv
 
 | Event | What it records |
 | --- | --- |
-| Timing | Page load, TTFB, start render, LCP, INP, and CLS. Client-side route changes send a timing event too. |
+| Timing | Page load, TTFB, start render, LCP, INP, and CLS. Client-side route changes send a timing event too, tagged as SPA. |
 | JavaScript errors | Exceptions and unhandled promise rejections |
 | Network errors | Failed `fetch` and `XMLHttpRequest` calls |
 | Crashes | The page was hidden before it finished loading |
-| Custom events | Names sent with `rum.track("pdf-open")` |
+| Custom events | Names sent with `rum.track("pdf-open")`, optional duration `rum.track("pdf-open", 120)` |
 
 Each event also includes a session id, path, **browser language** (`navigator.language`), **page locale** (`<html lang>` — never inferred from the URL), device type, operating system, connection speed, and optional **release**. The server adds the request origin, country, and browser family. Raw IP addresses and User-Agent strings are not stored; grouping uses salted hashes. Events older than 30 days are deleted.
 
 ## Features
 
-The dashboard covers the last 24 hours, 7 days, or 30 days. Sessions can be grouped by session id, user-agent, IP, or both. Bot traffic can be included or excluded. Click a URL, site, language, locale, or release in the tables to scope every chart and total. Summary cards compare the current window to the previous one of the same length, and Core Web Vitals show the share of loads that were “good”. Collect health appears when beacons go stale or `/collect` rejects traffic. An optional webhook can POST when p75 LCP or the JS error rate is high.
+The dashboard covers the last 24 hours, 7 days, or 30 days. Sessions can be grouped by session id, user-agent, IP, or both. Bot traffic can be included or excluded, and views can be limited to full loads or SPA navigations. Click a URL, site, language, locale, release, error group, or network host in the tables to scope the rest of the page. Summary cards compare the current window to the previous one of the same length, and Core Web Vitals show the share of loads that were “good”. Ranked tables include p75 LCP. Errors and `rum.track` events are charted over time. Collect health appears when beacons go stale (this process, or a site’s last beacon) or `/collect` rejects traffic. An optional webhook can POST when p75 LCP or the JS error rate is high on any origin.
 
 **Range, grouping, and bots**
 
@@ -32,13 +32,13 @@ Sessions, page load / TTFB / start render (p50 with p75 and p95), LCP / INP / CL
 
 **Sites**
 
-Origins that posted events, with sessions, page loads, p75 LCP, and JS errors.
+Origins that posted events, with sessions, page loads, p75 LCP, JS errors, and last beacon time.
 
 ![Sites by origin](docs/screenshots/sites.png)
 
 **Page views**
 
-Breakdowns by URL, site, and language, with counts and median load time. Click a row to filter.
+Breakdowns by URL, site, and language, with counts, median load time, and p75 LCP. Click a row to filter.
 
 ![Page views by URL, site, and language](docs/screenshots/page-views.png)
 
@@ -58,9 +58,17 @@ Device type, operating system, connection speed, and country.
 
 ![User context charts](docs/screenshots/context.png)
 
+**Errors over time**
+
+JS errors, network errors, crashes, and custom events across the selected range.
+
+**This release vs previous**
+
+Sessions, p75 LCP, share of good LCP, and JS errors for the selected (or latest) release next to the one before it.
+
 **Custom events and errors**
 
-`rum.track` counts, errors grouped by type and message, and a recent-error log with page, device, and country.
+`rum.track` counts with optional p75 duration, network errors by host and status, errors grouped by type and message (click a group to see samples), and a recent-error log with page, device, and country.
 
 ![Custom events, error groups, and recent errors](docs/screenshots/errors.png)
 
@@ -91,10 +99,11 @@ Optional attributes (or `?v=` / `?sample=` on the script URL):
 ></script>
 <script>
   rum.track("pdf-open");
+  rum.track("checkout", 840);
 </script>
 ```
 
-`data-release` is a deploy id (`[A-Za-z0-9._-]`, up to 64 characters). `data-sample` is a fraction from 0 to 1 (default 1). Custom event names are lowercase (`[a-z0-9][a-z0-9._-]{0,63}`).
+`data-release` is a deploy id (`[A-Za-z0-9._-]`, up to 64 characters). `data-sample` is a fraction from 0 to 1 (default 1). Custom event names are lowercase (`[a-z0-9][a-z0-9._-]{0,63}`). The optional second argument to `rum.track` is a duration in milliseconds.
 
 In development, beacons are accepted from `http://localhost:3000`. The dashboard has no login until credentials are set.
 
@@ -112,7 +121,7 @@ Set these in `.env`:
 | `MONITOR_HASH_SALT` | Salt for IP and User-Agent hashes (at least 16 characters) |
 | `MONITOR_DB_PATH` | SQLite file (default `data/rum.sqlite`) |
 | `MONITOR_TRUST_PROXY` | Set when a reverse proxy terminates TLS, so visitor IPs stay correct |
-| `MONITOR_ALERT_WEBHOOK` | Optional. POST JSON here when p75 LCP or JS error rate is high (humans, last 24h) |
+| `MONITOR_ALERT_WEBHOOK` | Optional. POST JSON here when p75 LCP or JS error rate is high on an origin (humans, last 24h) |
 
 Then `pnpm start`, and point the site's script tag at this server's `/rum.js`.
 

@@ -2,6 +2,7 @@
   import {
     barChart,
     connectionChart,
+    countChart,
     countryChart,
     doughnutChart,
     timingChart,
@@ -23,6 +24,19 @@
     <ChartPane
       config={timingChart(data.series, data.range)}
       label={t("charts.timingLabel")}
+      wide
+    />
+  </Card.Content>
+</Card.Root>
+
+<Card.Root>
+  <Card.Header>
+    <Card.Title>{t("charts.errorsTitle")}</Card.Title>
+  </Card.Header>
+  <Card.Content>
+    <ChartPane
+      config={countChart(data.errorSeries, data.range)}
+      label={t("charts.errorsLabel")}
       wide
     />
   </Card.Content>

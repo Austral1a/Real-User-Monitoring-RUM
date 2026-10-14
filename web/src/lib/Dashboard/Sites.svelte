@@ -1,7 +1,7 @@
 <script lang="ts">
   import * as Card from "$lib/Components/Ui/Card/index.js";
   import * as Table from "$lib/Components/Ui/Table/index.js";
-  import { formatCount, formatMs } from "$lib/Shared/Format";
+  import { formatCount, formatDateTime, formatMs } from "$lib/Shared/Format";
   import { t } from "$lib/I18n";
   import type { SiteRow } from "$lib/Shared/Types";
 
@@ -29,12 +29,13 @@
           <Table.Head class="w-28 text-end">{t("sites.pageLoads")}</Table.Head>
           <Table.Head class="w-24 text-end">{t("sites.p75Lcp")}</Table.Head>
           <Table.Head class="w-24 text-end">{t("sites.jsErrors")}</Table.Head>
+          <Table.Head class="w-40">{t("sites.lastBeacon")}</Table.Head>
         </Table.Row>
       </Table.Header>
       <Table.Body>
         {#if sites.length === 0}
           <Table.Row>
-            <Table.Cell colspan={5} class="text-muted-foreground text-center">
+            <Table.Cell colspan={6} class="text-muted-foreground text-center">
               {t("sites.empty")}
             </Table.Cell>
           </Table.Row>
@@ -63,6 +64,11 @@
               <Table.Cell class="text-end tabular-nums"
                 >{formatCount(site.jsErrors)}</Table.Cell
               >
+              <Table.Cell class="whitespace-nowrap">
+                {site.lastBeaconAt
+                  ? formatDateTime(site.lastBeaconAt)
+                  : t("format.dash")}
+              </Table.Cell>
             </Table.Row>
           {/each}
         {/if}

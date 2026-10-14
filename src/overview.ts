@@ -5,19 +5,23 @@ import {
   SESSION_KEYS,
   type BreakdownKey,
   type BreakdownRow,
-  type CustomEventRow,
+  type CountEventRow,
+  type CustomEventSample,
   type ErrorGroup,
   type ErrorRow,
   type EventFilter,
+  type NetworkGroup,
   type PageViewKey,
   type PageViewSample,
   type SessionKey,
+  type SiteBeacon,
   type SiteLcpSample,
   type SiteStats,
   type Store,
   type TimingRow,
   type Totals,
 } from "./store";
+import type { ErrorType } from "./types";
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -56,10 +60,25 @@ export interface SeriesPoint extends TimingSummary {
   samples: number;
 }
 
+export interface CountPoint {
+  start: number;
+  jsErrors: number;
+  networkErrors: number;
+  crashes: number;
+  custom: number;
+}
+
 export interface PageViewRow {
   key: string;
   count: number;
   pageLoad: number | null;
+  lcp: number | null;
+}
+
+export interface CustomEventRow {
+  key: string;
+  count: number;
+  duration: number | null;
 }
 
 export interface VitalScore {
@@ -75,6 +94,19 @@ export interface SiteRow {
   pageLoads: number;
   jsErrors: number;
   lcp: number | null;
+  lastBeaconAt: number | null;
+}
+
+export interface ReleaseSlice {
+  release: string;
+  totals: Totals;
+  p75: TimingSummary;
+  lcp: VitalScore;
+}
+
+export interface ReleaseCompare {
+  current: ReleaseSlice | null;
+  previous: ReleaseSlice | null;
 }
 
 export interface PreviousPeriod {
@@ -91,6 +123,12 @@ export interface Overview {
   locale: string | null;
   release: string | null;
   bot: boolean;
+  spa: boolean | null;
+  errorType: ErrorType | null;
+  errorMessage: string | null;
+  errorSource: string | null;
+  host: string | null;
+  status: number | null;
   from: number;
   to: number;
   totals: Totals;
@@ -102,10 +140,13 @@ export interface Overview {
     cls: VitalScore;
   };
   series: SeriesPoint[];
+  errorSeries: CountPoint[];
   recentErrors: ErrorRow[];
   errorGroups: ErrorGroup[];
+  networkGroups: NetworkGroup[];
   sites: SiteRow[];
   customEvents: CustomEventRow[];
+  releases: ReleaseCompare;
   breakdowns: Record<BreakdownKey, BreakdownRow[]>;
   pageViews: Record<PageViewKey, PageViewRow[]>;
   ingest: IngestStats;
@@ -160,6 +201,7 @@ export function vitalScore(
 export function rankSites(
   stats: SiteStats[],
   lcps: SiteLcpSample[],
+  beacons: SiteBeacon[] = [],
 ): SiteRow[] {
   const byOrigin = new Map<string, number[]>();
   for (const sample of lcps) {
@@ -167,30 +209,61 @@ export function rankSites(
     values.push(sample.lcp);
     byOrigin.set(sample.origin, values);
   }
+  const lastBeacon = new Map(
+    beacons.map((row) => [row.origin, row.lastBeaconAt]),
+  );
   return stats.map((row) => ({
     ...row,
     lcp: percentile(byOrigin.get(row.origin) ?? [], 0.75),
+    lastBeaconAt: lastBeacon.get(row.origin) ?? null,
   }));
 }
 
-/** Groups timing events by a label, ranked by view count, with a median page load. */
+/** Groups timing events by a label, ranked by view count, with a median page load and p75 LCP. */
 export function rankPageViews(
   samples: PageViewSample[],
   limit = 10,
 ): PageViewRow[] {
-  const groups = new Map<string, { count: number; loads: number[] }>();
+  const groups = new Map<
+    string,
+    { count: number; loads: number[]; lcps: number[] }
+  >();
   for (const sample of samples) {
-    const group = groups.get(sample.key) ?? { count: 0, loads: [] };
+    const group = groups.get(sample.key) ?? { count: 0, loads: [], lcps: [] };
     group.count += 1;
     if (sample.pageLoad !== null) group.loads.push(sample.pageLoad);
+    if (sample.lcp !== null) group.lcps.push(sample.lcp);
     groups.set(sample.key, group);
   }
 
   return [...groups]
-    .map(([key, { count, loads }]) => ({
+    .map(([key, { count, loads, lcps }]) => ({
       key,
       count,
       pageLoad: percentile(loads, 0.5),
+      lcp: percentile(lcps, 0.75),
+    }))
+    .sort((a, b) => b.count - a.count || a.key.localeCompare(b.key))
+    .slice(0, limit);
+}
+
+export function rankCustomEvents(
+  samples: CustomEventSample[],
+  limit = 20,
+): CustomEventRow[] {
+  const groups = new Map<string, { count: number; durations: number[] }>();
+  for (const sample of samples) {
+    const group = groups.get(sample.key) ?? { count: 0, durations: [] };
+    group.count += 1;
+    if (sample.duration !== null) group.durations.push(sample.duration);
+    groups.set(sample.key, group);
+  }
+
+  return [...groups]
+    .map(([key, { count, durations }]) => ({
+      key,
+      count,
+      duration: percentile(durations, 0.75),
     }))
     .sort((a, b) => b.count - a.count || a.key.localeCompare(b.key))
     .slice(0, limit);
@@ -221,6 +294,59 @@ export function timingSeries(
   }));
 }
 
+export function countSeries(
+  rows: CountEventRow[],
+  from: number,
+  to: number,
+  bucketMs: number,
+): CountPoint[] {
+  const firstBucket = Math.floor(from / bucketMs) * bucketMs;
+  const buckets = new Map<number, CountPoint>();
+  for (let start = firstBucket; start < to; start += bucketMs) {
+    buckets.set(start, {
+      start,
+      jsErrors: 0,
+      networkErrors: 0,
+      crashes: 0,
+      custom: 0,
+    });
+  }
+
+  for (const row of rows) {
+    const start = Math.floor(row.receivedAt / bucketMs) * bucketMs;
+    const bucket = buckets.get(start);
+    if (!bucket) continue;
+    if (row.type === "js_error") bucket.jsErrors += 1;
+    else if (row.type === "network_error") bucket.networkErrors += 1;
+    else if (row.type === "crash") bucket.crashes += 1;
+    else if (row.type === "custom") bucket.custom += 1;
+  }
+
+  return [...buckets.values()];
+}
+
+export function compareReleases(
+  store: Store,
+  from: number,
+  to: number,
+  sessionKey: SessionKey,
+  filter: EventFilter,
+): ReleaseCompare {
+  const { release: selected, ...rest } = filter;
+  const names = store
+    .recentReleases(from, to, 8, rest)
+    .map((row) => row.key);
+  const currentName = selected ?? names[0] ?? null;
+  if (!currentName) return { current: null, previous: null };
+  const previousName = names.find((name) => name !== currentName) ?? null;
+  return {
+    current: releaseSlice(store, from, to, sessionKey, rest, currentName),
+    previous: previousName
+      ? releaseSlice(store, from, to, sessionKey, rest, previousName)
+      : null,
+  };
+}
+
 const EMPTY_INGEST: IngestStats = {
   stored: 0,
   originRejected: 0,
@@ -243,6 +369,7 @@ export function buildOverview(
   const prevFrom = from - durationMs;
   const timings = store.timings(from, to, filter);
   const previousTimings = store.timings(prevFrom, from, filter);
+  const scope = withoutErrorScope(filter);
 
   const breakdowns = Object.fromEntries(
     (Object.keys(BREAKDOWN_COLUMNS) as BreakdownKey[]).map((key) => [
@@ -260,6 +387,12 @@ export function buildOverview(
     locale: filter.locale ?? null,
     release: filter.release ?? null,
     bot: filter.bot === true,
+    spa: filter.spa ?? null,
+    errorType: filter.errorType ?? null,
+    errorMessage: filter.errorMessage ?? null,
+    errorSource: filter.errorSource ?? null,
+    host: filter.host ?? null,
+    status: filter.status ?? null,
     from,
     to,
     totals: store.totals(from, to, sessionKey, filter),
@@ -294,13 +427,22 @@ export function buildOverview(
       ),
     },
     series: timingSeries(timings, from, to, bucketMs),
+    errorSeries: countSeries(
+      store.countEvents(from, to, filter),
+      from,
+      to,
+      bucketMs,
+    ),
     recentErrors: store.recentErrors(from, to, 20, filter),
     errorGroups: store.groupedErrors(from, to, 20, filter),
+    networkGroups: store.networkGroups(from, to, 20, scope),
     sites: rankSites(
       store.siteStats(from, to, sessionKey, filter),
       store.siteLcps(from, to, filter),
+      store.siteBeacons(),
     ),
-    customEvents: store.customEvents(from, to, 20, filter),
+    customEvents: rankCustomEvents(store.customEvents(from, to, filter)),
+    releases: compareReleases(store, from, to, sessionKey, filter),
     breakdowns,
     pageViews: Object.fromEntries(
       (Object.keys(PAGEVIEW_COLUMNS) as PageViewKey[]).map((key) => [
@@ -310,6 +452,40 @@ export function buildOverview(
     ) as Record<PageViewKey, PageViewRow[]>,
     ingest,
   };
+}
+
+function releaseSlice(
+  store: Store,
+  from: number,
+  to: number,
+  sessionKey: SessionKey,
+  filter: EventFilter,
+  release: string,
+): ReleaseSlice {
+  const scoped = { ...filter, release };
+  const timings = store.timings(from, to, scoped);
+  return {
+    release,
+    totals: store.totals(from, to, sessionKey, scoped),
+    p75: summarizeTimings(timings, 0.75),
+    lcp: vitalScore(
+      pick(timings, "lcp"),
+      VITAL_THRESHOLDS.lcp.good,
+      VITAL_THRESHOLDS.lcp.ni,
+    ),
+  };
+}
+
+function withoutErrorScope(filter: EventFilter): EventFilter {
+  const {
+    errorType: _errorType,
+    errorMessage: _errorMessage,
+    errorSource: _errorSource,
+    host: _host,
+    status: _status,
+    ...rest
+  } = filter;
+  return rest;
 }
 
 function pick(rows: TimingRow[], field: keyof TimingSummary): number[] {
